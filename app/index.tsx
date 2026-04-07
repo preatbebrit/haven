@@ -13,9 +13,10 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Colors, FontFamily, FontSize, Radius, Spacing } from '@/constants/theme';
+import { Colors, FontFamily, Radius, Spacing } from '@/constants/theme';
 
 const googleLogo = require('@/assets/images/google-logo.png');
+const havenLogo = require('@/assets/images/haven_logo_black.png');
 
 const SHEET_ANIM_MS = 300;
 
@@ -26,10 +27,10 @@ type AuthOption =
   | { provider: AuthProvider; label: string; image: ReturnType<typeof require>; ionicon?: never };
 
 const AUTH_OPTIONS: AuthOption[] = [
-  { provider: 'apple', label: 'with Apple', ionicon: 'logo-apple' },
-  { provider: 'google', label: 'with Google', image: googleLogo },
-  { provider: 'phone', label: 'with phone number', ionicon: 'call' },
-  { provider: 'email', label: 'with email address', ionicon: 'mail' },
+  { provider: 'apple',  label: 'with Apple',          ionicon: 'logo-apple' },
+  { provider: 'google', label: 'with Google',          image: googleLogo },
+  { provider: 'phone',  label: 'with phone number',    ionicon: 'call' },
+  { provider: 'email',  label: 'with email address',   ionicon: 'mail' },
 ];
 
 export default function WelcomeScreen() {
@@ -51,19 +52,9 @@ export default function WelcomeScreen() {
     setSheetVisible(true);
     requestAnimationFrame(() => {
       Animated.parallel([
-        Animated.timing(overlayOpacity, {
-          toValue: 1,
-          duration: SHEET_ANIM_MS,
-          useNativeDriver: true,
-        }),
-        Animated.timing(sheetTranslateY, {
-          toValue: 0,
-          duration: SHEET_ANIM_MS,
-          useNativeDriver: true,
-        }),
-      ]).start(() => {
-        animatingRef.current = false;
-      });
+        Animated.timing(overlayOpacity, { toValue: 1, duration: SHEET_ANIM_MS, useNativeDriver: true }),
+        Animated.timing(sheetTranslateY, { toValue: 0, duration: SHEET_ANIM_MS, useNativeDriver: true }),
+      ]).start(() => { animatingRef.current = false; });
     });
   }, [overlayOpacity, sheetOffscreen, sheetTranslateY]);
 
@@ -71,16 +62,8 @@ export default function WelcomeScreen() {
     if (animatingRef.current) return;
     animatingRef.current = true;
     Animated.parallel([
-      Animated.timing(overlayOpacity, {
-        toValue: 0,
-        duration: SHEET_ANIM_MS,
-        useNativeDriver: true,
-      }),
-      Animated.timing(sheetTranslateY, {
-        toValue: sheetOffscreen,
-        duration: SHEET_ANIM_MS,
-        useNativeDriver: true,
-      }),
+      Animated.timing(overlayOpacity, { toValue: 0, duration: SHEET_ANIM_MS, useNativeDriver: true }),
+      Animated.timing(sheetTranslateY, { toValue: sheetOffscreen, duration: SHEET_ANIM_MS, useNativeDriver: true }),
     ]).start(({ finished }) => {
       animatingRef.current = false;
       if (finished) setSheetVisible(false);
@@ -88,39 +71,42 @@ export default function WelcomeScreen() {
   }, [overlayOpacity, sheetOffscreen, sheetTranslateY]);
 
   function handleAuth(_provider: AuthProvider) {
-    // TODO: wire up real auth per provider
     router.replace('/onboarding/username');
   }
 
   return (
-    <View style={[styles.screen, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+    <View style={[styles.screen, { paddingTop: insets.top }]}>
+
+      {/* Logo */}
       <View style={styles.logoBlock}>
-        <Text style={styles.brand} accessibilityRole="header">
-          <Text style={styles.brandPlain}>h</Text>
-          <Text style={styles.brandAt}>@</Text>
-          <Text style={styles.brandPlain}>ven</Text>
-        </Text>
+        <Image source={havenLogo} style={styles.logo} resizeMode="contain" accessibilityLabel="h@ven" />
       </View>
 
+      {/* Headline */}
       <View style={styles.headlineWrap}>
-        <Text style={[styles.decor, styles.decor1]}>✦</Text>
-        <Text style={[styles.decor, styles.decor2]}>★</Text>
-        <Text style={[styles.decor, styles.decor3]}>🌸</Text>
-        <Text style={[styles.decor, styles.decor4]}>😊</Text>
-        <Text style={[styles.decor, styles.decor5]}>✦</Text>
-
         <Text style={styles.headline}>
-          <Text style={styles.headlineBold}>
-            We&apos;re happy{'\n'}you&apos;re here.{' '}
-          </Text>
-          <Text style={styles.headlineLight}>
-            Building queer community is something we all deserve and{' '}
-            <Text style={styles.headlineUnderline}>need.</Text>
-          </Text>
+          <Text style={styles.hExtraBold}>{"We're happy\nyou're here. "}</Text>
+          <Text style={styles.hRegular}>{'Building '}</Text>
+          <Text style={styles.hSemiBold}>{'queer community'}</Text>
+          <Text style={styles.hRegular}>{' is something we all deserve and '}</Text>
+          <Text style={styles.hUnderline}>{'need'}</Text>
+          <Text style={styles.hRegular}>{'.'}</Text>
         </Text>
+
+        {/* Decorative stars — absolute positioned, bottom-right */}
+        <View style={[styles.star, styles.star3]} pointerEvents="none">
+          <Ionicons name="star" size={53} color={Colors.skyBlue} />
+        </View>
+        <View style={[styles.star, styles.star2]} pointerEvents="none">
+          <Ionicons name="star" size={47} color={Colors.cherry} />
+        </View>
+        <View style={[styles.star, styles.star1]} pointerEvents="none">
+          <Ionicons name="star" size={25} color={Colors.green} />
+        </View>
       </View>
 
-      <View style={styles.bottomBlock}>
+      {/* Begin button */}
+      <View style={[styles.bottomBlock, { paddingBottom: Math.max(insets.bottom, Spacing.lg) }]}>
         <Pressable
           style={({ pressed }) => [styles.beginButton, pressed && styles.beginButtonPressed]}
           onPress={openSheet}
@@ -128,10 +114,11 @@ export default function WelcomeScreen() {
           accessibilityLabel="Begin"
         >
           <Text style={styles.beginLabel}>Begin</Text>
-          <Text style={styles.beginArrow}>→</Text>
+          <Ionicons name="arrow-forward" size={20} color={Colors.white} />
         </Pressable>
       </View>
 
+      {/* Auth bottom sheet */}
       <Modal
         visible={sheetVisible}
         transparent
@@ -197,7 +184,9 @@ export default function WelcomeScreen() {
               ))}
 
               <Text style={styles.sheetLegal}>
-                By continuing you agree to the <Text style={styles.sheetLegalEm}>Terms of Service</Text> and{' '}
+                By continuing you agree to the{' '}
+                <Text style={styles.sheetLegalEm}>Terms of Service</Text>
+                {' '}and{' '}
                 <Text style={styles.sheetLegalEm}>Privacy Policy</Text>.
               </Text>
             </View>
@@ -213,95 +202,76 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.white,
   },
+
+  // ── Logo ──────────────────────────────────────────────────────────────────
   logoBlock: {
     alignItems: 'center',
     paddingTop: Spacing.lg,
-    paddingBottom: Spacing.md,
+    paddingBottom: Spacing.sm,
   },
-  brand: {
-    fontFamily: FontFamily.extraBold,
-    fontSize: FontSize.xl,
-    letterSpacing: -0.5,
+  logo: {
+    height: 28,
+    width: 120,
   },
-  brandPlain: {
-    fontFamily: FontFamily.extraBold,
-    fontSize: FontSize.xl,
-    color: Colors.black,
-  },
-  brandAt: {
-    fontFamily: FontFamily.extraBold,
-    fontSize: FontSize.xl,
-    color: Colors.cyan,
-  },
+
+  // ── Headline ──────────────────────────────────────────────────────────────
   headlineWrap: {
     flex: 1,
-    paddingHorizontal: Spacing.lg,
-    justifyContent: 'center',
-    position: 'relative',
-  },
-  decor: {
-    position: 'absolute',
-    fontSize: 28,
-    zIndex: 0,
-  },
-  decor1: {
-    top: '8%',
-    right: '6%',
-    fontSize: 22,
-    opacity: 0.85,
-  },
-  decor2: {
-    top: '22%',
-    left: '4%',
-    fontSize: 26,
-  },
-  decor3: {
-    top: '38%',
-    right: '10%',
-    fontSize: 32,
-  },
-  decor4: {
-    top: '52%',
-    right: '4%',
-    fontSize: 36,
-  },
-  decor5: {
-    bottom: '18%',
-    left: '8%',
-    fontSize: 20,
-    opacity: 0.9,
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.md,
   },
   headline: {
-    zIndex: 1,
+    fontSize: 64,
+    lineHeight: 60,
+    letterSpacing: -3.84,
   },
-  headlineBold: {
+  hExtraBold: {
     fontFamily: FontFamily.extraBold,
-    fontSize: 36,
-    lineHeight: 44,
     color: Colors.black,
-    letterSpacing: -0.8,
   },
-  headlineLight: {
-    fontFamily: FontFamily.medium,
-    fontSize: 28,
-    lineHeight: 38,
+  hRegular: {
+    fontFamily: FontFamily.regular,
     color: Colors.black,
-    letterSpacing: -0.4,
   },
-  headlineUnderline: {
+  hSemiBold: {
+    fontFamily: FontFamily.semiBold,
+    color: Colors.black,
+  },
+  hUnderline: {
+    fontFamily: FontFamily.extraLight,
+    color: Colors.black,
     textDecorationLine: 'underline',
-    fontFamily: FontFamily.medium,
   },
+
+  // ── Decorative stars ──────────────────────────────────────────────────────
+  star: {
+    position: 'absolute',
+  },
+  star1: {
+    right: 48,
+    bottom: 32,
+  },
+  star2: {
+    right: 16,
+    bottom: 64,
+  },
+  star3: {
+    right: 8,
+    bottom: 120,
+  },
+
+  // ── Begin button ──────────────────────────────────────────────────────────
   bottomBlock: {
-    paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.sm,
   },
   beginButton: {
     backgroundColor: Colors.black,
-    borderRadius: Radius.full,
-    height: 56,
+    borderRadius: Radius.lg,
+    height: 48,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: Spacing.lg,
   },
   beginButtonPressed: {
@@ -310,17 +280,13 @@ const styles = StyleSheet.create({
   beginLabel: {
     flex: 1,
     textAlign: 'center',
-    fontFamily: FontFamily.bold,
-    fontSize: FontSize.md,
+    fontFamily: FontFamily.semiBold,
+    fontSize: 16,
+    lineHeight: 20,
     color: Colors.white,
   },
-  beginArrow: {
-    fontFamily: FontFamily.bold,
-    fontSize: FontSize.lg,
-    color: Colors.white,
-    width: 28,
-    textAlign: 'right',
-  },
+
+  // ── Bottom sheet ──────────────────────────────────────────────────────────
   modalRoot: {
     flex: 1,
     justifyContent: 'flex-end',
@@ -331,8 +297,8 @@ const styles = StyleSheet.create({
   },
   sheet: {
     backgroundColor: Colors.white,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
+    borderTopLeftRadius: Radius.xxl,
+    borderTopRightRadius: Radius.xxl,
     paddingTop: Spacing.sm,
     paddingHorizontal: Spacing.lg,
     shadowColor: Colors.black,
@@ -347,9 +313,9 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
   },
   closeBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 48,
+    height: 48,
+    borderRadius: Radius.md,
     backgroundColor: Colors.black,
     alignItems: 'center',
     justifyContent: 'center',
@@ -360,21 +326,20 @@ const styles = StyleSheet.create({
   sheetTitle: {
     flex: 1,
     textAlign: 'center',
-    fontFamily: FontFamily.bold,
-    fontSize: FontSize.sm,
+    fontFamily: FontFamily.semiBold,
+    fontSize: 16,
     color: Colors.black,
-    letterSpacing: 0.3,
   },
   sheetHeaderSpacer: {
-    width: 40,
+    width: 48,
   },
   sheetBody: {
     gap: Spacing.sm,
   },
   authButton: {
     backgroundColor: Colors.black,
-    borderRadius: Radius.full,
-    height: 56,
+    borderRadius: Radius.lg,
+    height: 48,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: Spacing.md,
@@ -397,20 +362,21 @@ const styles = StyleSheet.create({
     flex: 1,
     textAlign: 'center',
     fontFamily: FontFamily.semiBold,
-    fontSize: FontSize.md,
+    fontSize: 16,
     color: Colors.white,
   },
   sheetLegal: {
     fontFamily: FontFamily.regular,
-    fontSize: FontSize.xs,
-    color: Colors.black,
-    textAlign: 'center',
+    fontSize: 12,
     lineHeight: 18,
-    marginTop: Spacing.sm,
+    color: Colors.gray40,
+    textAlign: 'center',
+    marginTop: Spacing.xs,
     marginBottom: Spacing.xs,
   },
   sheetLegalEm: {
     textDecorationLine: 'underline',
     fontFamily: FontFamily.medium,
+    color: Colors.gray40,
   },
 });

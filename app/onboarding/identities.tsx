@@ -21,7 +21,7 @@ export default function OnboardingIdentitiesScreen() {
     if (!canNext) return;
     const seen = await hasSeenIntro();
     if (seen) {
-      router.replace('/(tabs)/home');
+      router.replace('/(tabs)/chat-selection');
     } else {
       router.replace('/onboarding/intro');
     }
@@ -73,10 +73,11 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.sm,
   },
   title: {
-    fontFamily: FontFamily.extraBold,
-    fontSize: FontSize.xxl,
+    fontFamily: FontFamily.semiBold,
+    fontSize: FontSize.h1,
+    lineHeight: 44,
+    letterSpacing: -2.4,
     color: Colors.black,
-    letterSpacing: -0.5,
     marginBottom: Spacing.sm,
   },
   subtitle: {

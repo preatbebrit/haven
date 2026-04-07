@@ -2,13 +2,15 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInDown, FadeOutUp } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { GroupCard } from '@/components/home/group-card';
 import { MOCK_GROUP_CARDS } from '@/constants/mock-groups';
 import { Colors, FontFamily, FontSize, Radius, Spacing } from '@/constants/theme';
+
+const havenLogo = require('@/assets/images/haven_logo_black.png');
 import { popPendingToast } from '@/lib/pending-toast';
 
 export default function HomeScreen() {
@@ -43,17 +45,14 @@ export default function HomeScreen() {
         </Animated.View>
       )}
       <View style={styles.topBar}>
-        <Text style={styles.brand} accessibilityRole="header">
-          <Text style={styles.brandPlain}>h</Text>
-          <Text style={styles.brandAt}>@</Text>
-          <Text style={styles.brandPlain}>ven</Text>
-        </Text>
+        <View style={styles.topBarSpacer} />
+        <Image source={havenLogo} style={styles.logo} resizeMode="contain" accessibilityLabel="h@ven" />
         <Pressable
           style={({ pressed }) => [styles.profileButton, pressed && styles.profileButtonPressed]}
           accessibilityRole="button"
           accessibilityLabel="Open profile"
         >
-          <Ionicons name="person" size={22} color={Colors.white} />
+          <Ionicons name="person" size={20} color={Colors.white} />
         </Pressable>
       </View>
 
@@ -61,6 +60,7 @@ export default function HomeScreen() {
         data={MOCK_GROUP_CARDS}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => <GroupCard group={item} />}
+        ItemSeparatorComponent={() => <View style={{ height: Spacing.md }} />}
         contentContainerStyle={[
           styles.listContent,
           { paddingBottom: insets.bottom + Spacing.xl },
@@ -80,40 +80,29 @@ const styles = StyleSheet.create({
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.lg,
+    paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md,
   },
-  brand: {
-    fontFamily: FontFamily.extraBold,
-    fontSize: FontSize.xl,
-    letterSpacing: -0.5,
+  topBarSpacer: {
+    width: 48,
   },
-  brandPlain: {
-    fontFamily: FontFamily.extraBold,
-    fontSize: FontSize.xl,
-    color: Colors.black,
-    letterSpacing: -0.5,
-  },
-  brandAt: {
-    fontFamily: FontFamily.extraBold,
-    fontSize: FontSize.xl,
-    color: Colors.cyan,
-    letterSpacing: -0.5,
+  logo: {
+    flex: 1,
+    height: 28,
   },
   profileButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 48,
+    height: 48,
+    borderRadius: 20,
     backgroundColor: Colors.black,
     alignItems: 'center',
     justifyContent: 'center',
   },
   profileButtonPressed: {
-    opacity: 0.8,
+    opacity: 0.75,
   },
   listContent: {
-    paddingHorizontal: Spacing.lg,
+    paddingHorizontal: Spacing.md,
     paddingTop: Spacing.sm,
   },
   toast: {
@@ -122,7 +111,7 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     backgroundColor: Colors.gray20,
     borderRadius: Radius.full,
-    paddingHorizontal: Spacing.lg,
+    paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
     zIndex: 100,
   },

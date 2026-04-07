@@ -3,15 +3,16 @@ export type ChatUser = {
   handle: string;
   displayName: string;
   avatarColor: string;
+  pronouns?: string;
 };
 
 /** Five people in the small group (+ current user "me" is separate). */
 export const MOCK_CHAT_MEMBERS: ChatUser[] = [
-  { id: 'grover', handle: 'grover', displayName: 'Grover', avatarColor: '#ff006a' },
-  { id: 'staceygirl', handle: 'staceygirl', displayName: 'Stacey', avatarColor: '#00e9ff' },
-  { id: 'xXrkXx', handle: 'xXrkXx', displayName: 'RK', avatarColor: '#c000ff' },
-  { id: 'river_codes', handle: 'river_codes', displayName: 'River', avatarColor: '#00ffaa' },
-  { id: 'mats_nb', handle: 'mats_nb', displayName: 'Mats', avatarColor: '#ffb800' },
+  { id: 'grover',      handle: 'grover',      displayName: 'Grover', avatarColor: '#ff006a', pronouns: 'She/her'   },
+  { id: 'staceygirl', handle: 'staceygirl',  displayName: 'Stacey', avatarColor: '#00e9ff', pronouns: 'They/them' },
+  { id: 'xXrkXx',     handle: 'xXrkXx',      displayName: 'RK',     avatarColor: '#c000ff', pronouns: 'Any/all'   },
+  { id: 'river_codes',handle: 'river_codes', displayName: 'River',  avatarColor: '#00ffaa', pronouns: 'He/him'    },
+  { id: 'mats_nb',    handle: 'mats_nb',     displayName: 'Mats',   avatarColor: '#ffb800', pronouns: 'They/he'   },
 ];
 
 export type MockChatMessage = {

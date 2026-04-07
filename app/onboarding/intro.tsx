@@ -69,16 +69,16 @@ export default function OnboardingIntroScreen() {
       return;
     }
     await markIntroSeen();
-    router.replace('/(tabs)/home');
+    router.replace('/(tabs)/chat-selection');
   }, [index, router]);
 
   const renderItem: ListRenderItem<Slide> = useCallback(
     ({ item, index: i }) => (
       <View style={[styles.page, { width }]}>
         <View style={styles.illustration}>{renderIllustration(i)}</View>
-        <View style={styles.dotsRow} accessibilityRole="adjustable" accessibilityLabel="Intro progress">
+        <View style={styles.progressRow} accessibilityRole="adjustable" accessibilityLabel="Intro progress">
           {SLIDES.map((_, si) => (
-            <View key={SLIDES[si].id} style={[styles.dot, si === i && styles.dotActive]} />
+            <View key={SLIDES[si].id} style={[styles.segment, si === i ? styles.segmentActive : styles.segmentInactive]} />
           ))}
         </View>
         <Text style={styles.title}>{item.title}</Text>
@@ -534,37 +534,37 @@ const styles = StyleSheet.create({
     minHeight: 260,
     maxHeight: 360,
   },
-  dotsRow: {
+  progressRow: {
     flexDirection: 'row',
-    justifyContent: 'center',
     alignItems: 'center',
-    gap: 10,
+    gap: 4,
     marginBottom: Spacing.lg,
   },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: Colors.gray80,
+  segment: {
+    height: 4,
+    borderRadius: 2,
   },
-  dotActive: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+  segmentActive: {
+    flex: 3,
     backgroundColor: Colors.black,
   },
+  segmentInactive: {
+    flex: 1,
+    backgroundColor: Colors.gray80,
+  },
   title: {
-    fontFamily: FontFamily.extraBold,
-    fontSize: FontSize.xxl,
+    fontFamily: FontFamily.semiBold,
+    fontSize: 40,
+    lineHeight: 44,
     color: Colors.black,
-    letterSpacing: -0.5,
+    letterSpacing: -2.4,
     marginBottom: Spacing.sm,
   },
   subtitle: {
-    fontFamily: FontFamily.regular,
+    fontFamily: FontFamily.medium,
     fontSize: FontSize.md,
     color: Colors.gray40,
-    lineHeight: 24,
+    lineHeight: 20,
     marginBottom: Spacing.lg,
     flexShrink: 0,
   },

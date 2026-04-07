@@ -35,7 +35,7 @@ export function PrimaryNextButton({ label = 'Next', disabled, onPress }: Props) 
 const styles = StyleSheet.create({
   btn: {
     backgroundColor: Colors.black,
-    borderRadius: Radius.full,
+    borderRadius: Radius.lg,
     height: 56,
     flexDirection: 'row',
     alignItems: 'center',

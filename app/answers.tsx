@@ -1,6 +1,6 @@
 import * as Haptics from 'expo-haptics';
-import { Stack, useRouter } from 'expo-router';
-import { useCallback, useRef, useState } from 'react';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
   ListRenderItem,
@@ -18,14 +18,17 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Colors, FontFamily, FontSize, Radius, Spacing } from '@/constants/theme';
+import { MOCK_GROUP_CARDS } from '@/constants/mock-groups';
+import { Colors, FontFamily, type PromptColors, Radius, Spacing, TextStyle } from '@/constants/theme';
 import { addPendingConnection } from '@/lib/pending-connections';
 
-const CARD_PURPLE = '#6B2FFF';
+const CARD_LEFT_PADDING = 32;
+const CARD_GAP = 16;
 
 type AnswerCard = {
   id: string;
   handle: string;
+  pronouns: string;
   avatarColor: string;
   answer: string;
 };
@@ -34,25 +37,29 @@ const ANSWER_CARDS: AnswerCard[] = [
   {
     id: 'grover',
     handle: 'grover',
-    avatarColor: '#ff006a',
+    pronouns: 'She/her',
+    avatarColor: Colors.cherry,
     answer: "I'm unlearning shame. And being more confident!",
   },
   {
     id: 'staceygirl',
     handle: 'staceygirl',
-    avatarColor: '#00e9ff',
+    pronouns: 'They/them',
+    avatarColor: Colors.skyBlue,
     answer: "I'm unlearning the need to be everything to everyone",
   },
   {
     id: 'mats_nb',
     handle: 'mats_nb',
-    avatarColor: '#ffb800',
+    pronouns: 'He/him',
+    avatarColor: Colors.teal,
     answer: "I'm unlearning that I need a neat label for strangers",
   },
   {
     id: 'xXrXx',
     handle: 'xXrXx',
-    avatarColor: '#c000ff',
+    pronouns: 'Any/all',
+    avatarColor: Colors.lightPurple,
     answer: "I'm unlearning silence. Speaking up even when it's scary",
   },
 ];
@@ -60,13 +67,15 @@ const ANSWER_CARDS: AnswerCard[] = [
 function AnswerCardItem({
   item,
   cardWidth,
-  onMeToo,
+  onLike,
   liked,
+  promptColors,
 }: {
   item: AnswerCard;
   cardWidth: number;
-  onMeToo: (id: string) => void;
+  onLike: (id: string) => void;
   liked: boolean;
+  promptColors: PromptColors;
 }) {
   const scale = useSharedValue(1);
 
@@ -74,7 +83,7 @@ function AnswerCardItem({
     transform: [{ scale: scale.value }],
   }));
 
-  function handleMeToo() {
+  function handleLike() {
     if (liked) return;
     scale.value = withSequence(
       withSpring(1.4, { damping: 4, stiffness: 300 }),
@@ -83,54 +92,54 @@ function AnswerCardItem({
     if (process.env.EXPO_OS === 'ios') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
-    onMeToo(item.id);
+    onLike(item.id);
   }
 
+  const { bg, fg, support } = promptColors;
+  const btnBorderColor = `${support}59`; // ~35% opacity
+
   return (
-    <View style={[styles.card, { width: cardWidth }]}>
-      <View style={styles.cardInner}>
-        {/* Avatar + handle */}
-        <View style={styles.authorRow}>
-          <View style={[styles.avatar, { backgroundColor: item.avatarColor }]}>
-            <Text style={styles.avatarInitial}>
-              {item.handle[0].toUpperCase()}
-            </Text>
-          </View>
-          <Text style={styles.handle}>@{item.handle}</Text>
+    <View style={[styles.card, { width: cardWidth, backgroundColor: bg }]}>
+      {/* Author row */}
+      <View style={styles.authorRow}>
+        <View style={[styles.avatar, { backgroundColor: item.avatarColor }]}>
+          <Text style={styles.avatarInitial}>{item.handle[0].toUpperCase()}</Text>
         </View>
+        <Text style={styles.handle}>
+          <Text style={[styles.handleUsername, { color: support }]}>@{item.handle} </Text>
+          {item.pronouns ? <Text style={[styles.handlePronouns, { color: support }]}>({item.pronouns})</Text> : null}
+        </Text>
+      </View>
 
-        {/* Answer text */}
-        <Text style={styles.answerText}>{item.answer}</Text>
+      {/* Answer */}
+      <Text style={[styles.answerText, { color: fg }]}>{item.answer}</Text>
 
-        {/* Action buttons */}
-        <View style={styles.actions}>
-          <Pressable
-            style={({ pressed }) => [styles.actionBtn, styles.replyBtn, pressed && { opacity: 0.7 }]}
-            accessibilityRole="button"
-            accessibilityLabel="Reply"
-          >
-            <Text style={styles.replyBtnText}>← Reply</Text>
-          </Pressable>
+      {/* Actions */}
+      <View style={styles.actions}>
+        <Pressable
+          style={({ pressed }) => [styles.actionBtn, { borderColor: btnBorderColor }, pressed && { opacity: 0.7 }]}
+          accessibilityRole="button"
+          accessibilityLabel="Reply"
+        >
+          <Text style={[styles.actionBtnText, { color: support }]}>← Reply</Text>
+        </Pressable>
 
-          <Pressable
-            style={({ pressed }) => [
-              styles.actionBtn,
-              styles.metooBtn,
-              liked && styles.metooBtnLiked,
-              pressed && !liked && { opacity: 0.8 },
-            ]}
-            onPress={handleMeToo}
-            accessibilityRole="button"
-            accessibilityLabel="Me too"
-          >
-            <Animated.Text style={[styles.metooBtnText, liked && styles.metooBtnTextLiked, heartStyle]}>
-              {liked ? '♥' : '♡'}
-            </Animated.Text>
-            <Text style={[styles.metooBtnLabel, liked && styles.metooBtnLabelLiked]}>
-              Me too
-            </Text>
-          </Pressable>
-        </View>
+        <Pressable
+          style={({ pressed }) => [
+            styles.actionBtn,
+            { borderColor: btnBorderColor },
+            liked && styles.actionBtnLiked,
+            pressed && !liked && { opacity: 0.8 },
+          ]}
+          onPress={handleLike}
+          accessibilityRole="button"
+          accessibilityLabel="Like"
+        >
+          <Animated.Text style={[styles.likeHeart, { color: `${support}CC` }, liked && styles.likeHeartActive, heartStyle]}>
+            {liked ? '♥' : '♡'}
+          </Animated.Text>
+          <Text style={[styles.actionBtnText, { color: support }, liked && styles.actionBtnTextLiked]}>Like</Text>
+        </Pressable>
       </View>
     </View>
   );
@@ -140,13 +149,21 @@ export default function AnswersScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
+  const { groupId } = useLocalSearchParams<{ groupId?: string }>();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
   const flatListRef = useRef<FlatList<AnswerCard>>(null);
 
-  const cardWidth = width;
+  const promptColors = useMemo(() => {
+    const group = MOCK_GROUP_CARDS.find((g) => g.id === groupId) ?? MOCK_GROUP_CARDS[0];
+    return group.promptColors;
+  }, [groupId]);
 
-  const onMeToo = useCallback((id: string) => {
+  // Card is 317px wide per Figma; clamp to screen if narrow device
+  const cardWidth = Math.min(317, width - CARD_LEFT_PADDING - 44);
+  const snapInterval = cardWidth + CARD_GAP;
+
+  const onLike = useCallback((id: string) => {
     setLikedIds((prev) => {
       if (prev.has(id)) return prev;
       const next = new Set(prev);
@@ -182,60 +199,58 @@ export default function AnswersScreen() {
       <AnswerCardItem
         item={item}
         cardWidth={cardWidth}
-        onMeToo={onMeToo}
+        onLike={onLike}
         liked={likedIds.has(item.id)}
+        promptColors={promptColors}
       />
     ),
-    [cardWidth, onMeToo, likedIds],
+    [cardWidth, onLike, likedIds, promptColors],
   );
 
   return (
     <>
-      <Stack.Screen
-        options={{
-          headerShown: true,
-          title: 'Meet your group',
-          headerTitleStyle: {
-            fontFamily: FontFamily.bold,
-            fontSize: FontSize.md,
-            color: Colors.white,
-          },
-          headerStyle: { backgroundColor: CARD_PURPLE },
-          headerShadowVisible: false,
-          headerLeft: () => (
-            <Pressable
-              onPress={handleClose}
-              style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, paddingRight: Spacing.sm })}
-              accessibilityRole="button"
-              accessibilityLabel="Close"
-            >
-              <Text style={styles.closeBtn}>✕</Text>
-            </Pressable>
-          ),
-        }}
-      />
+      <Stack.Screen options={{ headerShown: false }} />
 
       <View style={[styles.screen, { paddingBottom: Math.max(insets.bottom, Spacing.lg) }]}>
+        <View style={[styles.topBar, { paddingTop: insets.top + Spacing.sm }]}>
+          <Pressable
+            onPress={handleClose}
+            style={({ pressed }) => [styles.closeBtn, pressed && { opacity: 0.7 }]}
+            accessibilityRole="button"
+            accessibilityLabel="Close"
+          >
+            <Text style={styles.closeBtnText}>✕</Text>
+          </Pressable>
+          <Text style={styles.topBarTitle}>Answers</Text>
+          <View style={styles.topBarSpacer} />
+        </View>
         <FlatList
           ref={flatListRef}
           data={ANSWER_CARDS}
           keyExtractor={(item) => item.id}
           renderItem={renderItem}
           horizontal
-          pagingEnabled
+          pagingEnabled={false}
+          snapToInterval={snapInterval}
+          snapToAlignment="start"
+          decelerationRate="fast"
           showsHorizontalScrollIndicator={false}
           onViewableItemsChanged={onViewableItemsChanged}
           viewabilityConfig={viewabilityConfig}
           bounces={false}
-          decelerationRate="fast"
+          contentContainerStyle={styles.listContent}
+          ItemSeparatorComponent={() => <View style={{ width: CARD_GAP }} />}
         />
 
-        {/* Pagination dots */}
-        <View style={styles.dots}>
+        {/* Segmented progress indicator */}
+        <View style={styles.pagination}>
           {ANSWER_CARDS.map((_, i) => (
             <View
               key={i}
-              style={[styles.dot, i === currentIndex && styles.dotActive]}
+              style={[
+                styles.segment,
+                i === currentIndex ? styles.segmentActive : styles.segmentInactive,
+              ]}
             />
           ))}
         </View>
@@ -247,118 +262,154 @@ export default function AnswersScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: CARD_PURPLE,
+    backgroundColor: Colors.white,
   },
-  card: {
-    flex: 1,
-    backgroundColor: CARD_PURPLE,
+
+  // ── Top bar ───────────────────────────────────────────────────────────────
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.lg,
+    paddingBottom: Spacing.md,
+    backgroundColor: Colors.white,
   },
-  cardInner: {
+  topBarTitle: {
     flex: 1,
-    gap: Spacing.lg,
+    textAlign: 'center',
+    fontFamily: FontFamily.semiBold,
+    fontSize: 20,
+    color: Colors.black,
   },
+  topBarSpacer: {
+    width: 48,
+  },
+
+  // ── Close button ──────────────────────────────────────────────────────────
+  closeBtn: {
+    width: 48,
+    height: 48,
+    borderRadius: 20,
+    backgroundColor: Colors.black,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  closeBtnText: {
+    fontFamily: FontFamily.medium,
+    fontSize: 16,
+    color: Colors.white,
+  },
+
+  // ── List ──────────────────────────────────────────────────────────────────
+  listContent: {
+    paddingLeft: CARD_LEFT_PADDING,
+    paddingRight: CARD_LEFT_PADDING,
+    paddingTop: Spacing.xl,
+    paddingBottom: Spacing.md,
+  },
+
+  // ── Card ──────────────────────────────────────────────────────────────────
+  card: {
+    borderRadius: Radius.lg,
+    padding: Spacing.md,
+    paddingTop: 14,
+    paddingBottom: 21,
+    gap: Spacing.lg,
+    justifyContent: 'space-between',
+    // Height matches Figma proportion (~526px on 852px screen)
+    aspectRatio: 317 / 526,
+  },
+
+  // ── Author ────────────────────────────────────────────────────────────────
   authorRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
   },
   avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
   },
   avatarInitial: {
     fontFamily: FontFamily.bold,
-    fontSize: FontSize.md,
+    fontSize: 16,
     color: Colors.white,
   },
   handle: {
-    fontFamily: FontFamily.semiBold,
-    fontSize: FontSize.md,
-    color: 'rgba(255,255,255,0.85)',
+    flexShrink: 1,
   },
+  handleUsername: {
+    fontFamily: FontFamily.semiBold,
+    fontSize: 16,
+    lineHeight: 20,
+  },
+  handlePronouns: {
+    fontFamily: FontFamily.medium,
+    fontSize: 16,
+    lineHeight: 20,
+  },
+
+  // ── Answer text ───────────────────────────────────────────────────────────
   answerText: {
-    fontFamily: FontFamily.extraBold,
-    fontSize: 30,
-    lineHeight: 40,
-    color: Colors.white,
-    letterSpacing: -0.5,
+    ...TextStyle.h3,
     flex: 1,
   },
+
+  // ── Action buttons ────────────────────────────────────────────────────────
   actions: {
     flexDirection: 'row',
-    gap: Spacing.sm,
-    paddingBottom: Spacing.md,
+    gap: Spacing.md,
   },
   actionBtn: {
-    height: 48,
+    height: 44,
     borderRadius: Radius.full,
     paddingHorizontal: Spacing.lg,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  replyBtn: {
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.25)',
-  },
-  replyBtnText: {
-    fontFamily: FontFamily.semiBold,
-    fontSize: FontSize.md,
-    color: Colors.white,
-  },
-  metooBtn: {
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.25)',
     flexDirection: 'row',
     gap: 6,
+    borderWidth: 1.5,
   },
-  metooBtnLiked: {
-    backgroundColor: 'rgba(255, 80, 140, 0.25)',
-    borderColor: 'rgba(255, 100, 160, 0.5)',
+  actionBtnLiked: {
+    borderColor: 'rgba(255,120,170,0.5)',
+    backgroundColor: 'rgba(255,80,140,0.2)',
   },
-  metooBtnText: {
-    fontFamily: FontFamily.bold,
-    fontSize: FontSize.lg,
-    color: 'rgba(255,255,255,0.8)',
-  },
-  metooBtnTextLiked: {
-    color: '#ff5090',
-  },
-  metooBtnLabel: {
+  actionBtnText: {
     fontFamily: FontFamily.semiBold,
-    fontSize: FontSize.md,
-    color: Colors.white,
+    fontSize: 16,
+    lineHeight: 20,
   },
-  metooBtnLabelLiked: {
+  actionBtnTextLiked: {
     color: '#ff80b0',
   },
-  dots: {
+  likeHeart: {
+    fontFamily: FontFamily.bold,
+    fontSize: 18,
+  },
+  likeHeartActive: {
+    color: '#ff5090',
+  },
+
+  // ── Pagination ────────────────────────────────────────────────────────────
+  pagination: {
     flexDirection: 'row',
-    justifyContent: 'center',
     alignItems: 'center',
-    gap: 6,
+    gap: 4,
+    paddingHorizontal: CARD_LEFT_PADDING,
     paddingVertical: Spacing.md,
   },
-  dot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: 'rgba(255,255,255,0.3)',
+  segment: {
+    height: 4,
+    borderRadius: 2,
   },
-  dotActive: {
-    backgroundColor: Colors.white,
-    width: 18,
-    borderRadius: 3,
+  segmentActive: {
+    flex: 3,
+    backgroundColor: Colors.black,
   },
-  closeBtn: {
-    fontFamily: FontFamily.medium,
-    fontSize: FontSize.md,
-    color: Colors.white,
+  segmentInactive: {
+    flex: 1,
+    backgroundColor: Colors.gray80,
   },
 });

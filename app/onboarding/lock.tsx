@@ -1,6 +1,7 @@
 import { useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
 import {
+  Image,
   Pressable,
   StyleSheet,
   Text,
@@ -13,6 +14,8 @@ import { OnboardingHeader } from '@/components/onboarding/onboarding-header';
 import { PrimaryNextButton } from '@/components/onboarding/primary-next-button';
 import { useOnboarding } from '@/contexts/onboarding-context';
 import { Colors, FontFamily, FontSize, Radius, Spacing } from '@/constants/theme';
+
+const havenLogo = require('@/assets/images/haven_logo_black.png');
 
 type Phase = 'entry' | 'success';
 
@@ -73,11 +76,7 @@ export default function OnboardingLockScreen() {
       <View style={styles.screen}>
         <OnboardingHeader step={3} />
         <View style={styles.brandRow}>
-          <Text style={styles.brand}>
-            <Text style={styles.brandPlain}>h</Text>
-            <Text style={styles.brandAt}>@</Text>
-            <Text style={styles.brandPlain}>ven</Text>
-          </Text>
+          <Image source={havenLogo} style={styles.logo} resizeMode="contain" accessibilityLabel="h@ven" />
         </View>
         <View style={styles.successBody}>
           <Text style={styles.lockEmoji}>🔒</Text>
@@ -175,10 +174,11 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.md,
   },
   title: {
-    fontFamily: FontFamily.extraBold,
-    fontSize: FontSize.xxl,
+    fontFamily: FontFamily.semiBold,
+    fontSize: FontSize.h1,
+    lineHeight: 44,
+    letterSpacing: -2.4,
     color: Colors.black,
-    letterSpacing: -0.5,
     marginBottom: Spacing.sm,
   },
   subtitle: {
@@ -265,19 +265,9 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.sm,
     paddingBottom: Spacing.md,
   },
-  brand: {
-    fontFamily: FontFamily.extraBold,
-    fontSize: FontSize.xl,
-  },
-  brandPlain: {
-    fontFamily: FontFamily.extraBold,
-    fontSize: FontSize.xl,
-    color: Colors.black,
-  },
-  brandAt: {
-    fontFamily: FontFamily.extraBold,
-    fontSize: FontSize.xl,
-    color: Colors.cyan,
+  logo: {
+    height: 28,
+    width: 120,
   },
   successBody: {
     flex: 1,
@@ -290,8 +280,10 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.lg,
   },
   successTitle: {
-    fontFamily: FontFamily.extraBold,
-    fontSize: FontSize.xxl,
+    fontFamily: FontFamily.semiBold,
+    fontSize: FontSize.h1,
+    lineHeight: 44,
+    letterSpacing: -2.4,
     color: Colors.black,
     marginBottom: Spacing.sm,
   },

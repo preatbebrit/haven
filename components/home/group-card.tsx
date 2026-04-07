@@ -3,7 +3,7 @@ import { useRouter } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { GroupCardData } from '@/constants/mock-groups';
-import { Colors, FontFamily, FontSize, Radius, Spacing } from '@/constants/theme';
+import { Colors, FontFamily, Radius, Spacing, TextStyle } from '@/constants/theme';
 
 type Props = {
   group: GroupCardData;
@@ -18,17 +18,25 @@ export function GroupCard({ group }: Props) {
 
   return (
     <View style={styles.card}>
-      <View style={[styles.promptHeader, { backgroundColor: group.headerBackground }]}>
-        <View style={styles.promptMetaRow}>
-          <Text style={styles.promptMetaLeft}>Prompt</Text>
-          <Text style={styles.promptMetaRight}>{group.activeLabel}</Text>
-        </View>
-        <Text style={[styles.question, { color: group.questionColor }]}>{group.question}</Text>
-      </View>
 
-      <View style={styles.body}>
-        <View style={styles.membersHeaderRow}>
-          <Text style={styles.sectionLabel}>Members</Text>
+      {/* ── Prompt block ─────────────────────────────────────────────────── */}
+      <Pressable
+        style={({ pressed }) => [styles.promptBlock, { backgroundColor: group.promptColors.bg }, pressed && styles.promptBlockPressed]}
+        onPress={handleJoin}
+        accessibilityRole="button"
+        accessibilityLabel="Answer prompt and join chat"
+      >
+        <View style={styles.promptMeta}>
+          <Text style={[styles.promptLabel, { color: group.promptColors.fg }]}>Prompt</Text>
+          <Text style={[styles.promptActive, { color: group.promptColors.support }]}>{group.activeLabel}</Text>
+        </View>
+        <Text style={[styles.promptQuestion, { color: group.promptColors.fg }]}>{group.question}</Text>
+      </Pressable>
+
+      {/* ── Members ──────────────────────────────────────────────────────── */}
+      <View style={styles.membersSection}>
+        <View style={styles.membersHeader}>
+          <Text style={styles.membersLabel}>Members</Text>
           <Text style={styles.openSeats}>
             {group.openSeats} open seat{group.openSeats === 1 ? '' : 's'}
           </Text>
@@ -37,108 +45,135 @@ export function GroupCard({ group }: Props) {
         <View style={styles.memberList}>
           {group.members.map((member) => (
             <View key={member.id} style={styles.memberRow}>
+              {/* Avatar */}
               <View style={[styles.avatar, { backgroundColor: member.avatarColor }]}>
-                <Ionicons name="person" size={16} color={Colors.white} />
+                <Text style={styles.avatarText}>{member.handle[0].toUpperCase()}</Text>
               </View>
-              <Text style={styles.handle} numberOfLines={1}>
-                @{member.handle}
-              </Text>
-              {member.isNew ? (
-                <View style={styles.newBadge}>
-                  <Text style={styles.newBadgeText}>New!</Text>
-                </View>
-              ) : null}
-              <Ionicons name="add" size={22} color={Colors.black} style={styles.memberPlus} />
-              <View style={styles.memberSpacer} />
-              <Text style={styles.messageCount}>{member.messageCount}</Text>
-              <Ionicons name="chatbubble-outline" size={18} color={Colors.black} />
+
+              {/* Handle + pronouns */}
+              <View style={styles.memberInfo}>
+                <Text style={styles.memberHandle}>@{member.handle} </Text>
+                <Text style={styles.memberPronouns}>({member.pronouns})</Text>
+              </View>
+
+              {/* Message count + icon */}
+              <View style={styles.memberCount}>
+                <Text style={styles.memberCountText}>{member.messageCount}</Text>
+                <Ionicons name="chatbubble-outline" size={18} color={Colors.black} />
+              </View>
             </View>
           ))}
         </View>
 
+        {/* ── Identity pills ──────────────────────────────────────────────── */}
         <View style={styles.tags}>
           {group.tags.map((tag) => (
-            <View key={tag} style={styles.tagPill}>
-              <Text style={styles.tagText}>{tag}</Text>
+            <View
+              key={tag.label}
+              style={[
+                styles.tagPill,
+                tag.matched ? styles.tagPillMatched : styles.tagPillUnmatched,
+              ]}
+            >
+              <Text style={styles.tagText}>{tag.label}</Text>
             </View>
           ))}
         </View>
+      </View>
 
+      {/* ── Divider ──────────────────────────────────────────────────────── */}
+      <View style={styles.divider} />
+
+      {/* ── Join button ──────────────────────────────────────────────────── */}
+      <View style={styles.joinWrap}>
         <Pressable
           style={({ pressed }) => [styles.joinButton, pressed && styles.joinButtonPressed]}
           onPress={handleJoin}
+          accessibilityRole="button"
+          accessibilityLabel="Join the chat"
         >
           <Text style={styles.joinLabel}>Join the chat</Text>
-          <Ionicons name="arrow-forward" size={22} color={Colors.white} />
+          <Ionicons name="arrow-forward" size={20} color={Colors.white} />
         </Pressable>
       </View>
+
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  // ── Card shell ────────────────────────────────────────────────────────────
   card: {
     backgroundColor: Colors.white,
-    borderRadius: 24,
-    overflow: 'hidden',
-    marginBottom: Spacing.lg,
+    borderRadius: Radius.xl,
+    borderWidth: 2,
+    borderColor: Colors.gray100,
     shadowColor: Colors.black,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.12,
-    shadowRadius: 24,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 4,
+    overflow: 'hidden',
   },
-  promptHeader: {
+
+  // ── Prompt block ──────────────────────────────────────────────────────────
+  promptBlock: {
+    margin: Spacing.md,
+    borderRadius: Radius.xl,
     paddingHorizontal: Spacing.md,
-    paddingTop: Spacing.md,
-    paddingBottom: Spacing.lg,
+    paddingVertical: 14,
+    gap: 4,
   },
-  promptMetaRow: {
+  promptBlockPressed: {
+    opacity: 0.85,
+  },
+  promptMeta: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: Spacing.sm,
   },
-  promptMetaLeft: {
-    fontFamily: FontFamily.semiBold,
-    fontSize: FontSize.xs,
-    color: Colors.white,
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
-    opacity: 0.95,
-  },
-  promptMetaRight: {
+  promptLabel: {
     fontFamily: FontFamily.medium,
-    fontSize: FontSize.xs,
-    color: Colors.white,
-    opacity: 0.9,
+    fontSize: 16,
+    lineHeight: 20,
   },
-  question: {
-    fontFamily: FontFamily.extraBold,
-    fontSize: FontSize.xxl,
-    lineHeight: 40,
-    letterSpacing: -0.5,
+  promptActive: {
+    fontFamily: FontFamily.semiBold,
+    fontSize: 12,
+    lineHeight: 16,
   },
-  body: {
-    paddingHorizontal: Spacing.md,
-    paddingTop: Spacing.md,
-    paddingBottom: Spacing.md,
-    gap: Spacing.md,
+  promptQuestion: {
+    ...TextStyle.h2,
   },
-  membersHeaderRow: {
+
+  // ── Divider ───────────────────────────────────────────────────────────────
+  divider: {
+    height: 1,
+    backgroundColor: Colors.gray100,
+  },
+
+  // ── Members ───────────────────────────────────────────────────────────────
+  membersSection: {
+    padding: Spacing.md,
+    gap: 12,
+  },
+  membersHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  sectionLabel: {
-    fontFamily: FontFamily.bold,
-    fontSize: FontSize.sm,
+  membersLabel: {
+    fontFamily: FontFamily.semiBold,
+    fontSize: 16,
+    lineHeight: 20,
     color: Colors.black,
   },
   openSeats: {
-    fontFamily: FontFamily.medium,
-    fontSize: FontSize.xs,
+    fontFamily: FontFamily.extraBold,
+    fontSize: 12,
+    lineHeight: 16,
     color: Colors.gray40,
+    letterSpacing: -0.24,
   },
   memberList: {
     gap: Spacing.sm,
@@ -147,83 +182,111 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
+    borderWidth: 2,
+    borderColor: Colors.gray100,
+    borderRadius: 20,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 12,
   },
   avatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 0,
   },
-  handle: {
-    flex: 1,
-    minWidth: 0,
-    fontFamily: FontFamily.semiBold,
-    fontSize: FontSize.md,
-    color: Colors.black,
-  },
-  memberPlus: {
-    marginLeft: 2,
-  },
-  memberSpacer: {
-    flex: 1,
-    minWidth: Spacing.xs,
-  },
-  messageCount: {
-    fontFamily: FontFamily.semiBold,
-    fontSize: FontSize.sm,
-    color: Colors.black,
-    marginRight: 4,
-  },
-  newBadge: {
-    marginLeft: Spacing.xs,
-    backgroundColor: '#39ff14',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: Radius.full,
-  },
-  newBadgeText: {
+  avatarText: {
     fontFamily: FontFamily.bold,
-    fontSize: 10,
-    color: Colors.black,
-    letterSpacing: 0.3,
+    fontSize: 13,
+    color: Colors.white,
   },
+  memberInfo: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'nowrap',
+  },
+  memberHandle: {
+    fontFamily: FontFamily.semiBold,
+    fontSize: 14,
+    lineHeight: 18,
+    color: Colors.black,
+  },
+  memberPronouns: {
+    fontFamily: FontFamily.medium,
+    fontSize: 14,
+    lineHeight: 18,
+    color: Colors.black,
+  },
+  memberCount: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    flexShrink: 0,
+  },
+  memberCountText: {
+    fontFamily: FontFamily.extraBold,
+    fontSize: 12,
+    lineHeight: 16,
+    color: Colors.black,
+    letterSpacing: -0.24,
+  },
+
+  // ── Identity pills ────────────────────────────────────────────────────────
   tags: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: Spacing.sm,
   },
   tagPill: {
-    borderWidth: 1.5,
-    borderColor: Colors.black,
-    backgroundColor: Colors.white,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: Radius.full,
+    height: 32,
+    borderRadius: Radius.lg,
+    paddingHorizontal: Spacing.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+  },
+  tagPillMatched: {
+    borderColor: Colors.cherry,
+    shadowColor: Colors.black,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  tagPillUnmatched: {
+    borderColor: Colors.gray80,
   },
   tagText: {
-    fontFamily: FontFamily.semiBold,
-    fontSize: FontSize.xs,
+    fontFamily: FontFamily.extraBold,
+    fontSize: 12,
+    lineHeight: 16,
     color: Colors.black,
+    letterSpacing: -0.24,
+  },
+
+  // ── Join button ───────────────────────────────────────────────────────────
+  joinWrap: {
+    padding: Spacing.md,
   },
   joinButton: {
-    marginTop: Spacing.xs,
     backgroundColor: Colors.black,
-    borderRadius: Radius.full,
-    height: 56,
-    paddingHorizontal: Spacing.lg,
+    borderRadius: Radius.lg,
+    height: 48,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: Spacing.lg,
     gap: Spacing.sm,
   },
   joinButtonPressed: {
     opacity: 0.85,
   },
   joinLabel: {
-    fontFamily: FontFamily.bold,
-    fontSize: FontSize.md,
+    fontFamily: FontFamily.semiBold,
+    fontSize: 16,
+    lineHeight: 20,
     color: Colors.white,
-    letterSpacing: 0.2,
   },
 });

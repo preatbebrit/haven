@@ -3,7 +3,7 @@ import { useRouter } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Colors, FontFamily, FontSize, Spacing } from '@/constants/theme';
+import { Colors, FontFamily, FontSize, Radius, Spacing } from '@/constants/theme';
 
 type Props = {
   step: number;
@@ -66,8 +66,8 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   back: {
-    width: 40,
-    height: 40,
+    width: 48,
+    height: 48,
     borderRadius: 20,
     backgroundColor: Colors.black,
     alignItems: 'center',

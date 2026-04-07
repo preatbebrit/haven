@@ -62,13 +62,14 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
   },
   title: {
-    fontFamily: FontFamily.extraBold,
-    fontSize: FontSize.xxl,
+    fontFamily: FontFamily.semiBold,
+    fontSize: FontSize.h1,
+    lineHeight: 44,
+    letterSpacing: -2.4,
     color: Colors.black,
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.md,
     paddingBottom: Spacing.md,
-    letterSpacing: -0.5,
   },
   list: {
     flex: 1,
@@ -116,12 +117,8 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   radioOuterSelected: {
-    borderColor: Colors.violet,
-    backgroundColor: Colors.violet,
-    shadowColor: Colors.aqua,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.6,
-    shadowRadius: 6,
+    borderColor: Colors.black,
+    backgroundColor: Colors.black,
   },
   footer: {
     paddingHorizontal: Spacing.lg,

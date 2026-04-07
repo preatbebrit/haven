@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import {
   KeyboardAvoidingView,
@@ -59,9 +60,7 @@ export default function OnboardingPronounsScreen() {
               >
                 <Text style={styles.rowLabel}>{p}</Text>
                 <View style={[styles.radioOuter, selected && styles.radioOuterSelected]}>
-                  {selected ? (
-                    <View style={styles.radioInner} />
-                  ) : null}
+                  {selected ? <Ionicons name="checkmark" size={16} color={Colors.white} /> : null}
                 </View>
               </Pressable>
             );
@@ -100,10 +99,11 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.md,
   },
   title: {
-    fontFamily: FontFamily.extraBold,
-    fontSize: FontSize.xxl,
+    fontFamily: FontFamily.semiBold,
+    fontSize: FontSize.h1,
+    lineHeight: 44,
+    letterSpacing: -2.4,
     color: Colors.black,
-    letterSpacing: -0.5,
     marginBottom: Spacing.sm,
   },
   subtitle: {
@@ -113,8 +113,6 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.lg,
   },
   list: {
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: Colors.gray80,
   },
   row: {
     flexDirection: 'row',
@@ -143,11 +141,6 @@ const styles = StyleSheet.create({
   },
   radioOuterSelected: {
     borderColor: Colors.black,
-  },
-  radioInner: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
     backgroundColor: Colors.black,
   },
   orOwn: {

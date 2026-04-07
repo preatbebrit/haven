@@ -41,15 +41,15 @@ const styles = StyleSheet.create({
     opacity: 0.45,
   },
   glowDefault: {
-    backgroundColor: Colors.violet,
-    shadowColor: Colors.cyan,
+    backgroundColor: Colors.purple,
+    shadowColor: Colors.skyBlue,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.9,
     shadowRadius: 8,
     elevation: 4,
   },
   glowError: {
-    backgroundColor: Colors.pink,
+    backgroundColor: Colors.cherry,
     shadowColor: '#ff0000',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.7,

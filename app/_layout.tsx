@@ -1,4 +1,5 @@
 import {
+  Manrope_200ExtraLight,
   Manrope_400Regular,
   Manrope_500Medium,
   Manrope_600SemiBold,
@@ -20,6 +21,7 @@ export const unstable_settings = {
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
+    Manrope_200ExtraLight,
     Manrope_400Regular,
     Manrope_500Medium,
     Manrope_600SemiBold,
