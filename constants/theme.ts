@@ -23,14 +23,33 @@ const havenPalette = {
   cherry:      '#FF006A',
 } as const;
 
-/** Light / dark surfaces for ThemedText, ThemedView, useThemeColor */
+/** Light / dark semantic tokens — from h@ven dark-mode design spec.
+ *  Brand-spectrum colors live on `havenPalette` and stay constant across modes.
+ *  Surfaces that should adapt read these via `useTheme()`; fixed tiles (chat
+ *  tiles on home, friend tiles on profile, avatars, prompt blocks) continue
+ *  reading raw palette tokens so they stay light-mode-styled in both modes. */
 const light = {
+  // Scalar keys preserved for back-compat with `useThemeColor` / ThemedText / ThemedView.
   text: '#000000',
-  background: '#ffffff',
+  background: '#FFFFFF',
   tint: '#000000',
   icon: '#5A5B66',
   tabIconDefault: '#878899',
   tabIconSelected: '#000000',
+
+  // Semantic tokens — read via useTheme().colors.*
+  textPrimary:         '#000000',
+  textPrimaryInverted: '#FFFFFF',
+  textSecondary:       '#5A5B66', // gray40
+  textTertiary:        '#B4B6CC', // gray80
+  gray20:              '#2D2D33',
+  gray40:              '#5A5B66',
+  gray60:              '#878899',
+  gray80:              '#B4B6CC',
+  gray100:             '#F0F1FF',
+  backgroundPrimary:   '#FFFFFF',
+  buttonPrimary:       '#000000',
+  chatBlue:            '#0015FF',
 } as const;
 
 const dark = {
@@ -40,6 +59,19 @@ const dark = {
   icon: '#B4B6CC',
   tabIconDefault: '#878899',
   tabIconSelected: '#FFFFFF',
+
+  textPrimary:         '#FFFFFF',
+  textPrimaryInverted: '#000000',
+  textSecondary:       '#B4B6CC', // gray80 swap
+  textTertiary:        '#5A5B66', // gray40 swap
+  gray20:              '#F0F1FF', // gray100 swap
+  gray40:              '#B4B6CC',
+  gray60:              '#878899',
+  gray80:              '#5A5B66',
+  gray100:             '#2D2D33', // gray20 swap
+  backgroundPrimary:   '#000000',
+  buttonPrimary:       '#FFFFFF',
+  chatBlue:            '#B0B6FF',
 } as const;
 
 export const Colors = {
@@ -47,6 +79,8 @@ export const Colors = {
   dark,
   ...havenPalette,
 } as const;
+
+export type ThemeColors = typeof light;
 
 export type AppColor = keyof typeof havenPalette;
 
@@ -82,7 +116,7 @@ export const TextStyle = {
   body:        { fontSize: 16, lineHeight: 20, fontFamily: FontFamily.medium,    letterSpacing: 0 },
   bodyBold:    { fontSize: 16, lineHeight: 20, fontFamily: FontFamily.semiBold,  letterSpacing: 0 },
   caption:     { fontSize: 12, lineHeight: 16, fontFamily: FontFamily.medium,    letterSpacing: 0 },
-  captionBold: { fontSize: 12, lineHeight: 16, fontFamily: FontFamily.semiBold,  letterSpacing: 0 },
+  captionBold: { fontSize: 12, lineHeight: 16, fontFamily: FontFamily.extraBold, letterSpacing: -0.24 },
 } as const;
 
 export const Spacing = {
@@ -116,6 +150,17 @@ const PROMPT_COLOR_COMBOS: PromptColors[] = [
 
 export function getRandomPromptColors(): PromptColors {
   return PROMPT_COLOR_COMBOS[Math.floor(Math.random() * PROMPT_COLOR_COMBOS.length)];
+}
+
+// Deterministic — same id always yields the same combo, so a group's prompt
+// color stays stable across screens, remounts, and Fast Refresh.
+export function getPromptColorsForId(id: string): PromptColors {
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) {
+    hash = (hash * 31 + id.charCodeAt(i)) | 0;
+  }
+  const idx = Math.abs(hash) % PROMPT_COLOR_COMBOS.length;
+  return PROMPT_COLOR_COMBOS[idx];
 }
 
 export const Radius = {

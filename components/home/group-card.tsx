@@ -1,9 +1,33 @@
-import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useMemo, useRef } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import type { GroupCardData } from '@/constants/mock-groups';
+import { IdentityPillRow } from '@/components/home/identity-pill-row';
+import { MemberRow, type MemberRowMember } from '@/components/home/member-row';
+import { PrimaryNextButton } from '@/components/onboarding/primary-next-button';
+import { getEffectivePromptColors, type GroupCardData } from '@/constants/mock-groups';
 import { Colors, FontFamily, Radius, Spacing, TextStyle } from '@/constants/theme';
+import { useCurrentUser } from '@/contexts/current-user-context';
+import { useFriends } from '@/contexts/friends-context';
+import { useRelationship } from '@/hooks/use-relationship';
+import { useTheme } from '@/hooks/use-theme';
+import { getProfileByUsername } from '@/lib/profile-directory';
+import { setPromptTransitionSource } from '@/lib/prompt-transition';
+
+function GroupCardMemberRow({ member, chatsJoined }: { member: MemberRowMember; chatsJoined: number }) {
+  const { state } = useRelationship(member.handle);
+  if (state === 'self') {
+    return <MemberRow member={member} trailing="you-badge" />;
+  }
+  if (state === 'friend') {
+    return <MemberRow member={member} trailing="friend-badge" />;
+  }
+  if (state === 'stranger') {
+    return <MemberRow member={member} trailing="chats-joined" chatsJoined={chatsJoined} />;
+  }
+  // pending-sent / pending-received / blocked → no right-side indicator.
+  return <MemberRow member={member} trailing="none" />;
+}
 
 type Props = {
   group: GroupCardData;
@@ -11,115 +35,136 @@ type Props = {
 
 export function GroupCard({ group }: Props) {
   const router = useRouter();
+  const { colors } = useTheme();
+  const promptRef = useRef<View>(null);
+  const promptColors = getEffectivePromptColors(group);
+  const { bannedIds } = useFriends();
+  const { displayProfile } = useCurrentUser();
+  const visibleMembers = group.members.filter((m) => !bannedIds.has(m.id));
+
+  // Pool = union of identityTags across the chat's members (excluding the
+  // current user). Matched = pool ∩ user-tags, so highlights mean "you share
+  // this with at least one other person in this chat". Matched pills are
+  // sorted to the front; everything else keeps its first-seen order so
+  // re-renders don't shuffle the layout.
+  const identityPills = useMemo(() => {
+    const userTags = new Set(displayProfile.tags);
+    const pool: string[] = [];
+    const seen = new Set<string>();
+    for (const m of visibleMembers) {
+      const profile = getProfileByUsername(m.handle);
+      const tags = profile?.identityTags ?? [];
+      for (const t of tags) {
+        if (seen.has(t)) continue;
+        seen.add(t);
+        pool.push(t);
+      }
+    }
+    const matched: string[] = [];
+    const unmatched: string[] = [];
+    for (const t of pool) {
+      if (userTags.has(t)) matched.push(t);
+      else unmatched.push(t);
+    }
+    return { matched, unmatched };
+  }, [visibleMembers, displayProfile.tags]);
 
   function handleJoin() {
-    router.push({ pathname: '/prompt', params: { id: group.id } });
+    const node = promptRef.current;
+    if (!node) {
+      router.push({ pathname: '/prompt', params: { id: group.id } });
+      return;
+    }
+    node.measureInWindow((x, y, width, height) => {
+      setPromptTransitionSource({ rect: { x, y, width, height }, groupId: group.id });
+      router.push({ pathname: '/prompt', params: { id: group.id } });
+    });
   }
 
   return (
-    <View style={styles.card}>
+    <View style={[styles.cardShadow, { backgroundColor: colors.backgroundPrimary }]}>
+      <View
+        style={[
+          styles.card,
+          { backgroundColor: colors.backgroundPrimary, borderColor: colors.gray100 },
+        ]}
+      >
 
       {/* ── Prompt block ─────────────────────────────────────────────────── */}
       <Pressable
-        style={({ pressed }) => [styles.promptBlock, { backgroundColor: group.promptColors.bg }, pressed && styles.promptBlockPressed]}
+        ref={promptRef}
+        style={({ pressed }) => [styles.promptBlock, { backgroundColor: promptColors.bg }, pressed && styles.promptBlockPressed]}
         onPress={handleJoin}
         accessibilityRole="button"
         accessibilityLabel="Answer prompt and join chat"
       >
         <View style={styles.promptMeta}>
-          <Text style={[styles.promptLabel, { color: group.promptColors.fg }]}>Prompt</Text>
-          <Text style={[styles.promptActive, { color: group.promptColors.support }]}>{group.activeLabel}</Text>
+          <Text style={[styles.promptLabel, { color: promptColors.fg }]}>Prompt</Text>
+          <Text style={[styles.promptActive, { color: promptColors.support }]}>{group.activeLabel}</Text>
         </View>
-        <Text style={[styles.promptQuestion, { color: group.promptColors.fg }]}>{group.question}</Text>
+        <Text style={[styles.promptQuestion, { color: promptColors.fg }]}>{group.question}</Text>
       </Pressable>
 
       {/* ── Members ──────────────────────────────────────────────────────── */}
       <View style={styles.membersSection}>
         <View style={styles.membersHeader}>
-          <Text style={styles.membersLabel}>Members</Text>
-          <Text style={styles.openSeats}>
+          <Text style={[styles.membersLabel, { color: colors.textPrimary }]}>Members</Text>
+          <Text style={[styles.openSeats, { color: colors.textSecondary }]}>
             {group.openSeats} open seat{group.openSeats === 1 ? '' : 's'}
           </Text>
         </View>
 
         <View style={styles.memberList}>
-          {group.members.map((member) => (
-            <View key={member.id} style={styles.memberRow}>
-              {/* Avatar */}
-              <View style={[styles.avatar, { backgroundColor: member.avatarColor }]}>
-                <Text style={styles.avatarText}>{member.handle[0].toUpperCase()}</Text>
-              </View>
-
-              {/* Handle + pronouns */}
-              <View style={styles.memberInfo}>
-                <Text style={styles.memberHandle}>@{member.handle} </Text>
-                <Text style={styles.memberPronouns}>({member.pronouns})</Text>
-              </View>
-
-              {/* Message count + icon */}
-              <View style={styles.memberCount}>
-                <Text style={styles.memberCountText}>{member.messageCount}</Text>
-                <Ionicons name="chatbubble-outline" size={18} color={Colors.black} />
-              </View>
-            </View>
+          {visibleMembers.map((member) => (
+            <GroupCardMemberRow
+              key={member.id}
+              member={member}
+              chatsJoined={member.chatsJoined}
+            />
           ))}
         </View>
 
         {/* ── Identity pills ──────────────────────────────────────────────── */}
-        <View style={styles.tags}>
-          {group.tags.map((tag) => (
-            <View
-              key={tag.label}
-              style={[
-                styles.tagPill,
-                tag.matched ? styles.tagPillMatched : styles.tagPillUnmatched,
-              ]}
-            >
-              <Text style={styles.tagText}>{tag.label}</Text>
-            </View>
-          ))}
-        </View>
+        <IdentityPillRow
+          matched={identityPills.matched}
+          unmatched={identityPills.unmatched}
+        />
       </View>
-
-      {/* ── Divider ──────────────────────────────────────────────────────── */}
-      <View style={styles.divider} />
 
       {/* ── Join button ──────────────────────────────────────────────────── */}
       <View style={styles.joinWrap}>
-        <Pressable
-          style={({ pressed }) => [styles.joinButton, pressed && styles.joinButtonPressed]}
-          onPress={handleJoin}
-          accessibilityRole="button"
-          accessibilityLabel="Join the chat"
-        >
-          <Text style={styles.joinLabel}>Join the chat</Text>
-          <Ionicons name="arrow-forward" size={20} color={Colors.white} />
-        </Pressable>
+        <PrimaryNextButton label="Join the chat" onPress={handleJoin} />
       </View>
-
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   // ── Card shell ────────────────────────────────────────────────────────────
+  // iOS clips shadows when overflow:hidden + borderRadius is on the same view,
+  // so the shadow lives on an outer wrapper and the inner view does the clipping.
+  cardShadow: {
+    backgroundColor: Colors.white,
+    borderRadius: Radius.xl,
+    shadowColor: Colors.black,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 2,
+  },
   card: {
     backgroundColor: Colors.white,
     borderRadius: Radius.xl,
     borderWidth: 2,
     borderColor: Colors.gray100,
-    shadowColor: Colors.black,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    elevation: 4,
     overflow: 'hidden',
   },
 
   // ── Prompt block ──────────────────────────────────────────────────────────
   promptBlock: {
     margin: Spacing.md,
-    borderRadius: Radius.xl,
+    borderRadius: Radius.md,
     paddingHorizontal: Spacing.md,
     paddingVertical: 14,
     gap: 4,
@@ -178,115 +223,9 @@ const styles = StyleSheet.create({
   memberList: {
     gap: Spacing.sm,
   },
-  memberRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    borderWidth: 2,
-    borderColor: Colors.gray100,
-    borderRadius: 20,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 12,
-  },
-  avatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
-  avatarText: {
-    fontFamily: FontFamily.bold,
-    fontSize: 13,
-    color: Colors.white,
-  },
-  memberInfo: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'nowrap',
-  },
-  memberHandle: {
-    fontFamily: FontFamily.semiBold,
-    fontSize: 14,
-    lineHeight: 18,
-    color: Colors.black,
-  },
-  memberPronouns: {
-    fontFamily: FontFamily.medium,
-    fontSize: 14,
-    lineHeight: 18,
-    color: Colors.black,
-  },
-  memberCount: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    flexShrink: 0,
-  },
-  memberCountText: {
-    fontFamily: FontFamily.extraBold,
-    fontSize: 12,
-    lineHeight: 16,
-    color: Colors.black,
-    letterSpacing: -0.24,
-  },
-
-  // ── Identity pills ────────────────────────────────────────────────────────
-  tags: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.sm,
-  },
-  tagPill: {
-    height: 32,
-    borderRadius: Radius.lg,
-    paddingHorizontal: Spacing.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-  },
-  tagPillMatched: {
-    borderColor: Colors.cherry,
-    shadowColor: Colors.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  tagPillUnmatched: {
-    borderColor: Colors.gray80,
-  },
-  tagText: {
-    fontFamily: FontFamily.extraBold,
-    fontSize: 12,
-    lineHeight: 16,
-    color: Colors.black,
-    letterSpacing: -0.24,
-  },
 
   // ── Join button ───────────────────────────────────────────────────────────
   joinWrap: {
     padding: Spacing.md,
-  },
-  joinButton: {
-    backgroundColor: Colors.black,
-    borderRadius: Radius.lg,
-    height: 48,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: Spacing.lg,
-    gap: Spacing.sm,
-  },
-  joinButtonPressed: {
-    opacity: 0.85,
-  },
-  joinLabel: {
-    fontFamily: FontFamily.semiBold,
-    fontSize: 16,
-    lineHeight: 20,
-    color: Colors.white,
   },
 });

@@ -1,9 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Colors, FontFamily, FontSize, Radius, Spacing } from '@/constants/theme';
+import { PressableScale } from '@/components/ui/pressable-scale';
+import { Colors, FontFamily, Spacing } from '@/constants/theme';
+import { useTheme } from '@/hooks/use-theme';
 
 type Props = {
   step: number;
@@ -11,10 +14,27 @@ type Props = {
   onBack?: () => void;
 };
 
+const PROGRESS_ANIM_MS = 400;
+
 export function OnboardingHeader({ step, total = 7, onBack }: Props) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const progress = step / total;
+  const { colors } = useTheme();
+  const progress = useRef(new Animated.Value(step / total)).current;
+
+  useEffect(() => {
+    Animated.timing(progress, {
+      toValue: step / total,
+      duration: PROGRESS_ANIM_MS,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
+  }, [progress, step, total]);
+
+  const fillWidth = progress.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0%', '100%'],
+  });
 
   function handleBack() {
     if (onBack) {
@@ -29,23 +49,30 @@ export function OnboardingHeader({ step, total = 7, onBack }: Props) {
   }
 
   return (
-    <View style={[styles.wrap, { paddingTop: insets.top + Spacing.sm }]}>
+    <View
+      style={[
+        styles.wrap,
+        { paddingTop: insets.top + Spacing.sm, backgroundColor: colors.backgroundPrimary },
+      ]}
+    >
       <View style={styles.row}>
-        <Pressable
-          style={({ pressed }) => [styles.back, pressed && styles.backPressed]}
+        <PressableScale
+          style={[styles.back, { backgroundColor: colors.buttonPrimary }]}
           onPress={handleBack}
           accessibilityRole="button"
           accessibilityLabel="Go back"
         >
-          <Ionicons name="chevron-back" size={22} color={Colors.white} />
-        </Pressable>
+          <Ionicons name="arrow-back" size={24} color={colors.textPrimaryInverted} />
+        </PressableScale>
 
-        <View style={styles.progressTrack}>
-          <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
+        <View style={[styles.progressTrack, { backgroundColor: colors.gray100 }]}>
+          <Animated.View
+            style={[styles.progressFill, { width: fillWidth, backgroundColor: colors.textPrimary }]}
+          />
         </View>
 
-        <View style={styles.stepBadge}>
-          <Text style={styles.stepText}>
+        <View style={[styles.stepBadge, { borderColor: colors.gray100 }]}>
+          <Text style={[styles.stepText, { color: colors.textSecondary }]}>
             {step}/{total}
           </Text>
         </View>
@@ -56,14 +83,14 @@ export function OnboardingHeader({ step, total = 7, onBack }: Props) {
 
 const styles = StyleSheet.create({
   wrap: {
-    paddingHorizontal: Spacing.lg,
+    paddingHorizontal: Spacing.md,
     paddingBottom: Spacing.md,
     backgroundColor: Colors.white,
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.sm,
+    gap: Spacing.md,
   },
   back: {
     width: 48,
@@ -73,13 +100,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  backPressed: {
-    opacity: 0.85,
-  },
   progressTrack: {
     flex: 1,
     height: 4,
-    backgroundColor: Colors.gray80,
+    backgroundColor: Colors.gray100,
     borderRadius: 2,
     overflow: 'hidden',
   },
@@ -89,18 +113,18 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
   stepBadge: {
-    minWidth: 44,
-    height: 44,
-    borderRadius: 22,
-    borderWidth: 1.5,
-    borderColor: Colors.black,
+    width: 48,
+    height: 48,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: Colors.gray100,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: Spacing.sm,
   },
   stepText: {
     fontFamily: FontFamily.semiBold,
-    fontSize: FontSize.sm,
-    color: Colors.black,
+    fontSize: 16,
+    letterSpacing: -0.32,
+    color: Colors.gray40,
   },
 });

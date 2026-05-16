@@ -1,63 +1,88 @@
 import { useFocusEffect } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
-import { StatusBar } from 'expo-status-bar';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { FlatList, Image, Pressable, StyleSheet, Text, View } from 'react-native';
-import Animated, { FadeInDown, FadeOutUp } from 'react-native-reanimated';
+import { useRouter } from 'expo-router';
+import { useCallback, useMemo, useState } from 'react';
+import { FlatList, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { GroupCard } from '@/components/home/group-card';
+import { AppHeader } from '@/components/ui/app-header';
+import { HavenLogo } from '@/components/ui/haven-logo';
+import { ProfileIcon } from '@/components/ui/icons/profile-icon';
+import { Toast } from '@/components/ui/toast';
 import { MOCK_GROUP_CARDS } from '@/constants/mock-groups';
-import { Colors, FontFamily, FontSize, Radius, Spacing } from '@/constants/theme';
-
-const havenLogo = require('@/assets/images/haven_logo_black.png');
+import { Colors, Spacing } from '@/constants/theme';
+import { useActiveChat } from '@/contexts/active-chat-context';
+import { useNotifications } from '@/hooks/use-notifications';
+import { useTheme } from '@/hooks/use-theme';
 import { popPendingToast } from '@/lib/pending-toast';
 
 export default function HomeScreen() {
+  const router = useRouter();
   const insets = useSafeAreaInsets();
+  // Profile badge counts unique senders with unread activity (matches the
+  // My Friends badge on /profile). The raw total-notification count
+  // double-counts a single friend who shared gallery + prompts + identity.
+  const { friendsWithUnreadCount: unreadCount } = useNotifications();
+  const { isHydrated, activeChatId } = useActiveChat();
+  const { colors } = useTheme();
   const [toast, setToast] = useState<string | null>(null);
-  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // The (tabs) replace animation is owned by chat.tsx: it flips to 'pop' on
+  // chat mount and resets to 'push' in chat's cleanup (post-transition).
+  // Doing the reset here instead races the leave animation and flips
+  // animationTypeForReplace back to 'push' mid-transition.
+
+  // Coming-out cards are always pinned to the top, regardless of source order.
+  const sortedCards = useMemo(
+    () =>
+      [...MOCK_GROUP_CARDS].sort((a, b) => {
+        const aPin = a.kind === 'coming-out' ? 0 : 1;
+        const bPin = b.kind === 'coming-out' ? 0 : 1;
+        return aPin - bPin;
+      }),
+    [],
+  );
+
+  // Defensive: if state and route get out of sync (e.g. user is in a chat but
+  // somehow lands here), bounce them back into /chat. The boot router and the
+  // join/leave transitions should normally make this unreachable.
+  useFocusEffect(
+    useCallback(() => {
+      if (isHydrated && activeChatId) {
+        router.replace('/chat');
+      }
+    }, [isHydrated, activeChatId, router]),
+  );
 
   useFocusEffect(
     useCallback(() => {
       const msg = popPendingToast();
-      if (msg) {
-        setToast(msg);
-        toastTimer.current = setTimeout(() => setToast(null), 3000);
-      }
-      return () => {
-        if (toastTimer.current) clearTimeout(toastTimer.current);
-      };
+      if (msg) setToast(msg);
     }, []),
   );
 
   return (
-    <View style={[styles.screen, { paddingTop: insets.top }]}>
-      <StatusBar style="dark" />
-      {toast && (
-        <Animated.View
-          entering={FadeInDown.duration(280).springify().damping(18)}
-          exiting={FadeOutUp.duration(220)}
-          style={styles.toast}
-          pointerEvents="none"
-        >
-          <Text style={styles.toastText}>{toast}</Text>
-        </Animated.View>
-      )}
-      <View style={styles.topBar}>
-        <View style={styles.topBarSpacer} />
-        <Image source={havenLogo} style={styles.logo} resizeMode="contain" accessibilityLabel="h@ven" />
-        <Pressable
-          style={({ pressed }) => [styles.profileButton, pressed && styles.profileButtonPressed]}
-          accessibilityRole="button"
-          accessibilityLabel="Open profile"
-        >
-          <Ionicons name="person" size={20} color={Colors.white} />
-        </Pressable>
-      </View>
-
+    <View style={[styles.screen, { backgroundColor: colors.backgroundPrimary }]}>
+      <Toast message={toast} onDismiss={() => setToast(null)} />
+      <AppHeader
+        left={{ kind: 'spacer' }}
+        center={{
+          kind: 'node',
+          node: <HavenLogo color={colors.textPrimary} />,
+        }}
+        right={{
+          kind: 'icon',
+          icon: <ProfileIcon size={24} color={colors.textPrimaryInverted} />,
+          onPress: () => router.push('/profile'),
+          accessibilityLabel:
+            unreadCount > 0
+              ? `Open profile. ${unreadCount} new notification${unreadCount === 1 ? '' : 's'}`
+              : 'Open profile',
+          badge: unreadCount,
+        }}
+      />
       <FlatList
-        data={MOCK_GROUP_CARDS}
+        data={sortedCards}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => <GroupCard group={item} />}
         ItemSeparatorComponent={() => <View style={{ height: Spacing.md }} />}
@@ -77,47 +102,8 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.white,
   },
-  topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.md,
-  },
-  topBarSpacer: {
-    width: 48,
-  },
-  logo: {
-    flex: 1,
-    height: 28,
-  },
-  profileButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 20,
-    backgroundColor: Colors.black,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  profileButtonPressed: {
-    opacity: 0.75,
-  },
   listContent: {
     paddingHorizontal: Spacing.md,
     paddingTop: Spacing.sm,
-  },
-  toast: {
-    position: 'absolute',
-    top: 90,
-    alignSelf: 'center',
-    backgroundColor: Colors.gray20,
-    borderRadius: Radius.full,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    zIndex: 100,
-  },
-  toastText: {
-    fontFamily: FontFamily.semiBold,
-    fontSize: FontSize.sm,
-    color: Colors.white,
   },
 });

@@ -1,71 +1,70 @@
+import type { GenderSymbol } from '@/components/ui/gender-avatar';
+import type { PromptColors } from '@/constants/theme';
+
 export type ChatUser = {
   id: string;
   handle: string;
   displayName: string;
   avatarColor: string;
-  pronouns?: string;
+  avatarSymbol: GenderSymbol;
+  pronouns: string;
 };
 
-/** Five people in the small group (+ current user "me" is separate). */
+/**
+ * Legacy chat roster + the universal late-joiner (`sage_glow`). Per-chat
+ * members now live on each `GroupCardData` and are read via
+ * `mock-chat-content.ts` — this list is retained only as:
+ *  • the source of `sage_glow` (the simulated joiner all chats share)
+ *  • a fallback handle directory for `getChatUserByHandle`
+ *  • the historical roster for the friends seed + shared-chat-gate
+ */
 export const MOCK_CHAT_MEMBERS: ChatUser[] = [
-  { id: 'grover',      handle: 'grover',      displayName: 'Grover', avatarColor: '#ff006a', pronouns: 'She/her'   },
-  { id: 'staceygirl', handle: 'staceygirl',  displayName: 'Stacey', avatarColor: '#00e9ff', pronouns: 'They/them' },
-  { id: 'xXrkXx',     handle: 'xXrkXx',      displayName: 'RK',     avatarColor: '#c000ff', pronouns: 'Any/all'   },
-  { id: 'river_codes',handle: 'river_codes', displayName: 'River',  avatarColor: '#00ffaa', pronouns: 'He/him'    },
-  { id: 'mats_nb',    handle: 'mats_nb',     displayName: 'Mats',   avatarColor: '#ffb800', pronouns: 'They/he'   },
+  { id: 'grover',       handle: 'grover',       displayName: 'Grover', avatarColor: '#ff006a', avatarSymbol: 'cis-woman',    pronouns: 'She/her'   },
+  { id: 'Staceygirl',  handle: 'Staceygirl',   displayName: 'Stacey', avatarColor: '#00e9ff', avatarSymbol: 'nonbinary',    pronouns: 'They/them' },
+  { id: 'xXrkXx',      handle: 'xXrkXx',       displayName: 'RK',     avatarColor: '#c000ff', avatarSymbol: 'pangender',    pronouns: 'Any/all'   },
+  { id: 'river_codes', handle: 'river_codes',  displayName: 'River',  avatarColor: '#00ffaa', avatarSymbol: 'cis-man',      pronouns: 'He/him'    },
+  { id: 'sage_glow',   handle: 'sage_glow',    displayName: 'Sage',   avatarColor: '#FF00D4', avatarSymbol: 'gender-fluid', pronouns: 'They/them' },
 ];
+
+/** Delay (ms after joinedAt) for the simulated leave event. */
+export const SIM_LEAVE_DELAY_MS = 35_000;
+/** Delay (ms after joinedAt) for the simulated join event. */
+export const SIM_JOIN_DELAY_MS = 40_000;
+
+/**
+ * Trigger counts for the simulated leave/join events. Counted against
+ * "real" rows in the chat — drip messages from NPCs plus the user's own
+ * messages — and excluding system rows (system-leave, system-join,
+ * system-connection). Tied to message count instead of wall-clock time
+ * so the events feel like a reaction to actual chatter rather than
+ * firing the instant the user opens /chat after lingering elsewhere.
+ */
+export const SIM_LEAVE_AFTER_MESSAGES = 3;
+export const SIM_JOIN_AFTER_MESSAGES = 6;
 
 export type MockChatMessage = {
   id: string;
   authorId: 'me' | string;
   body: string;
-  type?: 'system-connection';
-  connection?: { handle: string; avatarColor: string; answer: string };
+  type?: 'system-connection' | 'system-join' | 'system-leave';
+  connection?: {
+    handle: string;
+    pronouns: string;
+    avatarColor: string;
+    avatarSymbol: GenderSymbol;
+    answer: string;
+    question: string;
+    promptColors: PromptColors;
+    /** `true` when shared via Reply — renders without the heart badge. */
+    viaReply?: boolean;
+  };
+  /** Set on `system-join` and `system-leave`. Handle of the user who joined/left. */
+  memberHandle?: string;
+  /** Set on `system-join` and `system-leave`. Wall-clock timestamp of the event. */
+  eventAt?: number;
+  gif?: { url: string; title: string };
+  replyToId?: string;
 };
 
-/**
- * Base thread (without the user's prompt answer). The chat screen inserts
- * the shared answer as a "me" message in the right place when present.
- */
-export const MOCK_CHAT_THREAD: MockChatMessage[] = [
-  {
-    id: '1',
-    authorId: 'grover',
-    body: "okay wait I love that we're actually doing this lol. hi everyone — nervous but glad to be here",
-  },
-  {
-    id: '2',
-    authorId: 'staceygirl',
-    body: 'hiiiii 💜 same, my hands were sweaty tapping join ngl',
-  },
-  {
-    id: '3',
-    authorId: 'xXrkXx',
-    body: "the prompt wrecked me in a good way. I'm trying to unlearn apologizing for my laugh?? like it's not that deep brain",
-  },
-  {
-    id: '4',
-    authorId: 'river_codes',
-    body: "STOP that's so specific I feel called out. I apologize for how I apologize 😭",
-  },
-  {
-    id: '5',
-    authorId: 'mats_nb',
-    body: "lmaooo. I'm unlearning the idea that I need a neat label ready for strangers. sometimes it's just… messy and that's okay",
-  },
-  {
-    id: '6',
-    authorId: 'grover',
-    body: 'messy is honest tho. I used to perform this polished queer persona online and I was exhausted by it',
-  },
-  {
-    id: '7',
-    authorId: 'staceygirl',
-    body: "yeah. small town energy makes you perform even harder. y'all feel that or is it just me",
-  },
-  {
-    id: '8',
-    authorId: 'river_codes',
-    body: "not just you. I literally practiced my voice in the car before therapy last week. we're doing our best out here",
-  },
-];
+// Per-chat threads + welcome drips moved to `mock-chat-content.ts`, keyed by
+// `GroupCardData.id`. See `MOCK_CHAT_CONTENT_BY_ID`.

@@ -18,3 +18,11 @@ export async function markIntroSeen(): Promise<void> {
     /* ignore */
   }
 }
+
+export async function clearIntroSeen(): Promise<void> {
+  try {
+    await AsyncStorage.removeItem(KEY);
+  } catch {
+    /* ignore */
+  }
+}
