@@ -233,6 +233,7 @@ export default function WelcomeScreen() {
 
   function handleAuth(provider: AuthProvider) {
     if (provider === 'email') {
+      closeSheet();
       router.push('/auth/email');
       return;
     }
