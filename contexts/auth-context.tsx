@@ -56,6 +56,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(next);
       setCurrentUserId(next?.user.id ?? null);
       if (next) {
+        // Reset to the "haven't queried yet" sentinel so the boot gate in
+        // app/index.tsx waits for loadProfile instead of routing on stale data.
+        // Without this, a stale `null` from a prior sign-out makes the gate
+        // briefly route to /onboarding before the profile lookup resolves.
+        setProfileUsername(undefined);
         void loadProfile(next.user.id);
       } else {
         setProfileUsername(null);
