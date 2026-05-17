@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Animated,
   Image,
@@ -229,7 +230,16 @@ export default function WelcomeScreen() {
     });
   }, [overlayOpacity, sheetOffscreen, sheetTranslateY]);
 
-  if (!bootResolved) return null;
+  if (!bootResolved) {
+    // Session resolution / profile lookup is in flight. Show a centered spinner
+    // instead of returning null so cold-launches with a stored session don't
+    // flash a white frame before routing to onboarding or tabs.
+    return (
+      <View style={[styles.screen, styles.bootLoading, { backgroundColor: colors.backgroundPrimary, paddingTop: insets.top }]}>
+        <ActivityIndicator size="large" color={colors.textPrimary} />
+      </View>
+    );
+  }
 
   function handleAuth(provider: AuthProvider) {
     if (provider === 'email') {
@@ -415,6 +425,10 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: Colors.white,
+  },
+  bootLoading: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
   // ── Logo ──────────────────────────────────────────────────────────────────

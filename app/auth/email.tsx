@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   KeyboardAvoidingView,
   LayoutChangeEvent,
   Platform,
@@ -24,6 +25,8 @@ import { GlowUnderline } from '@/components/onboarding/glow-underline';
 import { PrimaryNextButton } from '@/components/onboarding/primary-next-button';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Colors, FontFamily, FontSize, Spacing } from '@/constants/theme';
+import { useActiveChat } from '@/contexts/active-chat-context';
+import { useAuth } from '@/contexts/auth-context';
 import { useTheme } from '@/hooks/use-theme';
 import { SUPABASE_CONFIGURED, supabase } from '@/lib/supabase';
 
@@ -41,6 +44,8 @@ export default function AuthEmailScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
+  const { session, profileUsername } = useAuth();
+  const { activeChatId } = useActiveChat();
 
   const [mode, setMode] = useState<Mode>('sign-up');
   const [step, setStep] = useState<Step>('email');
@@ -51,6 +56,10 @@ export default function AuthEmailScreen() {
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  // True from "auth succeeded" until we router.replace away. Keeps the overlay
+  // spinner on screen while AuthProvider finishes loading profileUsername, so
+  // the user doesn't see a white flash or a wrong-route flicker.
+  const [awaitingRoute, setAwaitingRoute] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [touchedConfirm, setTouchedConfirm] = useState(false);
 
@@ -104,6 +113,25 @@ export default function AuthEmailScreen() {
     runTransition(bodyWidth);
   }, [prevStep, bodyWidth, runTransition]);
 
+  // After signIn/signUp succeeds we set awaitingRoute=true and stay mounted
+  // until AuthProvider's loadProfile resolves. Then we route directly to the
+  // final destination — skipping the welcome-screen bounce that caused the
+  // white-flash / wrong-route-flicker bug.
+  useEffect(() => {
+    if (!awaitingRoute) return;
+    if (!session) return;
+    if (profileUsername === undefined) return;
+    if (!profileUsername) {
+      router.replace('/onboarding');
+      return;
+    }
+    if (activeChatId) {
+      router.replace('/chat');
+      return;
+    }
+    router.replace('/(tabs)/chat-selection');
+  }, [awaitingRoute, session, profileUsername, activeChatId, router]);
+
   function advanceTo(next: Step) {
     directionRef.current = 'forward';
     setPrevStep(step);
@@ -153,12 +181,14 @@ export default function AuthEmailScreen() {
       });
       if (authError) {
         setError(authError.message);
+        setSubmitting(false);
         return;
       }
-      router.replace('/');
+      // Stay on this screen with the overlay spinner; the watch effect will
+      // route once AuthProvider finishes loading profileUsername.
+      setAwaitingRoute(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Something went wrong. Try again.');
-    } finally {
       setSubmitting(false);
     }
   }
@@ -189,21 +219,24 @@ export default function AuthEmailScreen() {
           setPrevStep(step);
           setStep('email');
           setError('That email already has an account. Sign in instead.');
+          setSubmitting(false);
           return;
         }
         setError(authError.message);
+        setSubmitting(false);
         return;
       }
-      router.replace('/');
+      // Stay on this screen with the overlay spinner; the watch effect will
+      // route once AuthProvider finishes loading profileUsername.
+      setAwaitingRoute(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Something went wrong. Try again.');
-    } finally {
       setSubmitting(false);
     }
   }
 
   function handleBack() {
-    if (submitting) return;
+    if (submitting || awaitingRoute) return;
     if (step === 'password') {
       retreatTo('email');
       return;
@@ -213,6 +246,7 @@ export default function AuthEmailScreen() {
   }
 
   function toggleMode() {
+    if (submitting || awaitingRoute) return;
     setMode((m) => (m === 'sign-up' ? 'sign-in' : 'sign-up'));
     setPassword('');
     setConfirm('');
@@ -246,7 +280,7 @@ export default function AuthEmailScreen() {
   })();
 
   const primaryInactive = (() => {
-    if (submitting) return true;
+    if (submitting || awaitingRoute) return true;
     if (step === 'email') return !emailValid;
     if (mode === 'sign-up') return !passwordValid || !confirmMatches;
     return !passwordValid;
@@ -300,7 +334,7 @@ export default function AuthEmailScreen() {
               })}
             </Animated.View>
           ) : null}
-          <Animated.View style={[styles.bodyLayer, currStyle]}>
+          <Animated.View style={[styles.bodyLayer, currStyle]} pointerEvents={awaitingRoute ? 'none' : 'auto'}>
             {renderStep(step, {
               mode,
               email,
@@ -326,13 +360,19 @@ export default function AuthEmailScreen() {
             })}
             {error ? <Text style={styles.error}>{error}</Text> : null}
           </Animated.View>
+
+          {awaitingRoute ? (
+            <View style={styles.loadingOverlay} pointerEvents="auto">
+              <ActivityIndicator size="large" color={colors.textPrimary} />
+            </View>
+          ) : null}
         </View>
 
         <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, Spacing.md) }]}>
           <PrimaryNextButton label={primaryLabel} inactive={primaryInactive} onPress={onPrimary} />
           <Pressable
             onPress={toggleMode}
-            disabled={submitting}
+            disabled={submitting || awaitingRoute}
             style={styles.toggleBtn}
             accessibilityRole="button"
           >
@@ -515,6 +555,12 @@ const styles = StyleSheet.create({
   toggleBtn: {
     alignItems: 'center',
     paddingVertical: Spacing.sm,
+  },
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.65)',
   },
   toggleLabel: {
     fontFamily: FontFamily.semiBold,
