@@ -13,6 +13,7 @@ import { Colors, FontFamily, FontSize, Spacing } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth-context';
 import { useCurrentUser } from '@/contexts/current-user-context';
 import { useFriends } from '@/contexts/friends-context';
+import { useLock } from '@/contexts/lock-context';
 import { useResetAccount } from '@/hooks/use-reset-account';
 import { useTheme } from '@/hooks/use-theme';
 import { EMPTY_PROFILE, getProfile, type StoredProfile } from '@/lib/profile-storage';
@@ -42,6 +43,7 @@ export default function SettingsScreen() {
   const { mode: themeMode, setMode: setThemeMode, colors } = useTheme();
   const { me } = useCurrentUser();
   const { signOut } = useAuth();
+  const { hasActivePin } = useLock();
   const resetAccount = useResetAccount();
 
   useFocusEffect(
@@ -73,7 +75,7 @@ export default function SettingsScreen() {
     profile.pronounsCustom.trim() || profile.pronounPreset || PLACEHOLDER_PRONOUNS;
   const outStatusLabel = profile.outStatus ? OUT_STATUS_LABELS[profile.outStatus] : '—';
   const acceptingLabel = profile.acceptingEnvironment ?? '—';
-  const lockLabel = profile.lockPin && !profile.lockSkipped ? 'On' : 'Off';
+  const lockLabel = hasActivePin ? 'On' : 'Off';
   const effectiveIdentities =
     profile.identities.length > 0 ? profile.identities : PLACEHOLDER_IDENTITIES;
   const identityLabel =

@@ -7,8 +7,6 @@ const KEY = '@haven/profile_v1';
 export type StoredProfile = {
   username: string;
   dateOfBirth: string;
-  lockPin: string | null;
-  lockSkipped: boolean;
   genderId: string | null;
   pronounPreset: string | null;
   pronounsCustom: string;
@@ -20,8 +18,6 @@ export type StoredProfile = {
 export const EMPTY_PROFILE: StoredProfile = {
   username: '',
   dateOfBirth: '',
-  lockPin: null,
-  lockSkipped: false,
   genderId: null,
   pronounPreset: null,
   pronounsCustom: '',
@@ -36,8 +32,6 @@ function normalize(value: unknown): StoredProfile {
   return {
     username: typeof v.username === 'string' ? v.username : '',
     dateOfBirth: typeof v.dateOfBirth === 'string' ? v.dateOfBirth : '',
-    lockPin: typeof v.lockPin === 'string' ? v.lockPin : null,
-    lockSkipped: typeof v.lockSkipped === 'boolean' ? v.lockSkipped : false,
     genderId: typeof v.genderId === 'string' ? v.genderId : null,
     pronounPreset: typeof v.pronounPreset === 'string' ? v.pronounPreset : null,
     pronounsCustom: typeof v.pronounsCustom === 'string' ? v.pronounsCustom : '',

@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -12,7 +12,6 @@ import { Colors, FontFamily, FontSize, Radius, Spacing } from '@/constants/theme
 import { useLock } from '@/contexts/lock-context';
 import { useTheme } from '@/hooks/use-theme';
 import { setPendingToast } from '@/lib/pending-toast';
-import { getProfile, setProfile } from '@/lib/profile-storage';
 
 export default function LockSettingsScreen() {
   const router = useRouter();
@@ -20,29 +19,16 @@ export default function LockSettingsScreen() {
   const { colors } = useTheme();
   const lock = useLock();
 
-  const [enabled, setEnabled] = useState(false);
+  const enabled = lock.hasActivePin;
   const [pin, setPin] = useState('');
   const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    let alive = true;
-    getProfile().then((p) => {
-      if (!alive) return;
-      setEnabled(Boolean(p.lockPin) && !p.lockSkipped);
-    });
-    return () => {
-      alive = false;
-    };
-  }, []);
 
   const full = pin.length === 4;
 
   async function handleSave() {
     if (!full || saving) return;
     setSaving(true);
-    await setProfile({ lockPin: pin, lockSkipped: false });
-    await lock.refreshPin();
-    await lock.markUnlocked();
+    await lock.setLockPin(pin);
     setPendingToast(enabled ? 'PIN updated' : 'Lock screen on');
     router.back();
   }
@@ -50,8 +36,7 @@ export default function LockSettingsScreen() {
   async function handleTurnOff() {
     if (saving) return;
     setSaving(true);
-    await setProfile({ lockPin: null, lockSkipped: true });
-    await lock.refreshPin();
+    await lock.clearLockPin();
     setPendingToast('Lock screen off');
     router.back();
   }

@@ -162,8 +162,6 @@ export default function OnboardingScreen() {
     await setProfile({
       username: onboarding.username,
       dateOfBirth: onboarding.dateOfBirth,
-      lockPin: onboarding.lockPin,
-      lockSkipped: onboarding.lockSkipped,
       genderId: onboarding.genderId,
       pronounPreset: onboarding.pronounPreset,
       pronounsCustom: onboarding.pronounsCustom,
@@ -174,10 +172,17 @@ export default function OnboardingScreen() {
     // Sync CurrentUserProvider with the just-written profile so chat-selection
     // highlights real identity tags instead of the empty-profile fallback.
     await refreshCurrentUser();
-    // Tell the lock gate about the PIN the user just set, and skip the prompt
-    // for this session — re-locks normally on next cold launch / background.
-    await lock.refreshPin();
-    await lock.markUnlocked();
+    // Write the PIN under the signed-in user's namespace. setLockPin also
+    // marks the session as just-unlocked, so the lock overlay won't trigger
+    // immediately after onboarding finishes. Sign-out → sign-in will
+    // re-challenge as expected.
+    if (session) {
+      if (onboarding.lockPin) {
+        await lock.setLockPin(onboarding.lockPin);
+      } else if (onboarding.lockSkipped) {
+        await lock.clearLockPin();
+      }
+    }
 
     // Persist username to Supabase so the boot gate in app/index.tsx knows the
     // profile is complete on next launch. The full profile (pronouns, gender,
