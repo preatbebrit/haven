@@ -44,7 +44,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .maybeSingle();
     if (!mountedRef.current) return;
     if (error) {
-      console.warn('[auth] profile lookup failed', error.message);
+      console.warn('[auth] profile lookup failed', error.code, error.message);
       setProfileUsername(null);
       return;
     }
@@ -80,15 +80,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       };
     }
 
-    supabase.auth.getSession().then(({ data }) => {
-      if (!mountedRef.current) return;
-      applySession(data.session);
-      setLoading(false);
-    });
-
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    // Single source of truth for auth state. INITIAL_SESSION fires once on
+    // subscribe with the rehydrated session (or null) — no need for a separate
+    // getSession() call, which only added a second applySession that raced the
+    // first loadProfile against the JWT being attached to PostgREST headers
+    // (anon role → 42501 permission denied warning on cold launches).
+    const { data: sub } = supabase.auth.onAuthStateChange((event, nextSession) => {
       if (!mountedRef.current) return;
       applySession(nextSession);
+      if (event === 'INITIAL_SESSION') setLoading(false);
     });
 
     return () => {
