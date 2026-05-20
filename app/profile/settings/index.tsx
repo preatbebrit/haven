@@ -2,19 +2,31 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { SettingsRow } from '@/components/settings/settings-row';
 import { SettingsSection } from '@/components/settings/settings-section';
 import { AppHeader } from '@/components/ui/app-header';
 import { CheckIcon } from '@/components/ui/icons/check-icon';
-import { Colors, FontFamily, FontSize, Spacing } from '@/constants/theme';
+import { Colors, FontFamily, FontSize, Radius, Spacing } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth-context';
 import { useCurrentUser } from '@/contexts/current-user-context';
 import { useFriends } from '@/contexts/friends-context';
 import { useLock } from '@/contexts/lock-context';
-import { useResetAccount } from '@/hooks/use-reset-account';
+import { useDeleteAccount } from '@/hooks/use-delete-account';
 import { useTheme } from '@/hooks/use-theme';
 import { EMPTY_PROFILE, getProfile, type StoredProfile } from '@/lib/profile-storage';
 import { type ThemeMode } from '@/lib/theme-mode-storage';
@@ -44,7 +56,11 @@ export default function SettingsScreen() {
   const { me } = useCurrentUser();
   const { signOut } = useAuth();
   const { hasActivePin } = useLock();
-  const resetAccount = useResetAccount();
+  const { state: deleteState, deleteAccount, dismissError } = useDeleteAccount();
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  // 'warn' = data-fate disclosure; 'confirm' = typed-username confirmation.
+  const [deleteStep, setDeleteStep] = useState<'warn' | 'confirm'>('warn');
+  const [confirmText, setConfirmText] = useState('');
 
   useFocusEffect(
     useCallback(() => {
@@ -101,22 +117,34 @@ export default function SettingsScreen() {
     ]);
   }
 
-  function handleDeleteAccount() {
-    Alert.alert(
-      'Delete account?',
-      'This permanently removes your profile, chats, and friends from this device. (Server-side delete will be added with auth.)',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            await resetAccount();
-            router.replace('/');
-          },
-        },
-      ],
-    );
+  function openDeleteFlow() {
+    setDeleteStep('warn');
+    setConfirmText('');
+    dismissError();
+    setDeleteModalOpen(true);
+  }
+
+  function closeDeleteFlow() {
+    if (deleteState.status === 'submitting') return;
+    setDeleteModalOpen(false);
+  }
+
+  // Case-insensitive match. Accept either form (with or without the leading @)
+  // since users see the handle as "@handle" in the row above.
+  const normalizedHandle = currentHandle.trim().toLowerCase();
+  const normalizedConfirm = confirmText.trim().replace(/^@/, '').toLowerCase();
+  const confirmMatches =
+    normalizedHandle.length > 0 && normalizedConfirm === normalizedHandle;
+
+  async function handleConfirmDelete() {
+    if (!confirmMatches) return;
+    const result = await deleteAccount();
+    if (result.ok) {
+      setDeleteModalOpen(false);
+      router.replace('/');
+    }
+    // On failure: useDeleteAccount has already set state.status='error'.
+    // The modal stays open and renders the error inline.
   }
 
   return (
@@ -263,12 +291,310 @@ export default function SettingsScreen() {
             <SettingsRow
               label="Delete account"
               destructive
-              onPress={handleDeleteAccount}
+              onPress={openDeleteFlow}
             />
           </SettingsSection>
         </ScrollView>
+
+        <DeleteAccountModal
+          visible={deleteModalOpen}
+          step={deleteStep}
+          handle={currentHandle}
+          confirmText={confirmText}
+          confirmMatches={confirmMatches}
+          submitting={deleteState.status === 'submitting'}
+          errorMessage={
+            deleteState.status === 'error' ? deleteState.error.message : null
+          }
+          onAdvance={() => {
+            dismissError();
+            setDeleteStep('confirm');
+          }}
+          onChangeConfirm={(t) => {
+            if (deleteState.status === 'error') dismissError();
+            setConfirmText(t);
+          }}
+          onSubmit={handleConfirmDelete}
+          onClose={closeDeleteFlow}
+          onBack={() => {
+            dismissError();
+            setDeleteStep('warn');
+          }}
+        />
       </View>
     </>
+  );
+}
+
+type DeleteAccountModalProps = {
+  visible: boolean;
+  step: 'warn' | 'confirm';
+  handle: string;
+  confirmText: string;
+  confirmMatches: boolean;
+  submitting: boolean;
+  errorMessage: string | null;
+  onAdvance: () => void;
+  onChangeConfirm: (next: string) => void;
+  onSubmit: () => void;
+  onClose: () => void;
+  onBack: () => void;
+};
+
+// Two-step modal: data-fate disclosure → typed-username confirmation.
+// Honest copy is intentional — see plan §4. Lists what's deleted and what's
+// retained anonymized so the user can't be surprised about messages
+// continuing to exist (attributed to "Deleted User") or reports being kept.
+function DeleteAccountModal({
+  visible,
+  step,
+  handle,
+  confirmText,
+  confirmMatches,
+  submitting,
+  errorMessage,
+  onAdvance,
+  onChangeConfirm,
+  onSubmit,
+  onClose,
+  onBack,
+}: DeleteAccountModalProps) {
+  const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      statusBarTranslucent
+      onRequestClose={onClose}
+    >
+      <View style={modalStyles.root}>
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onPress={onClose}
+          accessibilityLabel="Dismiss"
+        />
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={modalStyles.kavRoot}
+          pointerEvents="box-none"
+        >
+          <View
+            style={[
+              modalStyles.sheet,
+              {
+                backgroundColor: colors.backgroundPrimary,
+                paddingBottom: Math.max(insets.bottom + Spacing.md, Spacing.lg),
+              },
+            ]}
+          >
+            {step === 'warn' ? (
+              <WarnStep
+                colors={colors}
+                onCancel={onClose}
+                onContinue={onAdvance}
+              />
+            ) : (
+              <ConfirmStep
+                colors={colors}
+                handle={handle}
+                confirmText={confirmText}
+                confirmMatches={confirmMatches}
+                submitting={submitting}
+                errorMessage={errorMessage}
+                onChangeConfirm={onChangeConfirm}
+                onSubmit={onSubmit}
+                onBack={onBack}
+              />
+            )}
+          </View>
+        </KeyboardAvoidingView>
+      </View>
+    </Modal>
+  );
+}
+
+function WarnStep({
+  colors,
+  onCancel,
+  onContinue,
+}: {
+  colors: ReturnType<typeof useTheme>['colors'];
+  onCancel: () => void;
+  onContinue: () => void;
+}) {
+  return (
+    <>
+      <Text style={[modalStyles.title, { color: colors.textPrimary }]}>
+        Delete your account?
+      </Text>
+      <Text style={[modalStyles.subtitle, { color: colors.textSecondary }]}>
+        This cannot be undone.
+      </Text>
+
+      <View style={modalStyles.section}>
+        <Text style={[modalStyles.sectionTitle, { color: colors.textPrimary }]}>
+          We will delete:
+        </Text>
+        {[
+          'Your profile, pronouns, identity, and bio',
+          'Your photos and prompt answers',
+          'Your friends list, top friends, and who you’ve shared with',
+          'Your blocks',
+        ].map((line) => (
+          <BulletLine key={line} text={line} color={colors.textPrimary} />
+        ))}
+      </View>
+
+      <View style={modalStyles.section}>
+        <Text style={[modalStyles.sectionTitle, { color: colors.textPrimary }]}>
+          We will keep, with your name removed:
+        </Text>
+        {[
+          'Messages you’ve sent in chats — others will see them as “Deleted User”',
+          'Reports you’ve filed and reports filed about you',
+        ].map((line) => (
+          <BulletLine key={line} text={line} color={colors.textPrimary} />
+        ))}
+      </View>
+
+      <View style={modalStyles.buttonRow}>
+        <ModalButton label="Cancel" variant="secondary" onPress={onCancel} />
+        <ModalButton
+          label="Continue"
+          variant="destructive"
+          onPress={onContinue}
+        />
+      </View>
+    </>
+  );
+}
+
+function ConfirmStep({
+  colors,
+  handle,
+  confirmText,
+  confirmMatches,
+  submitting,
+  errorMessage,
+  onChangeConfirm,
+  onSubmit,
+  onBack,
+}: {
+  colors: ReturnType<typeof useTheme>['colors'];
+  handle: string;
+  confirmText: string;
+  confirmMatches: boolean;
+  submitting: boolean;
+  errorMessage: string | null;
+  onChangeConfirm: (next: string) => void;
+  onSubmit: () => void;
+  onBack: () => void;
+}) {
+  return (
+    <>
+      <Text style={[modalStyles.title, { color: colors.textPrimary }]}>
+        Type your username to confirm
+      </Text>
+      <Text style={[modalStyles.subtitle, { color: colors.textSecondary }]}>
+        Enter @{handle} to permanently delete your account.
+      </Text>
+
+      <TextInput
+        value={confirmText}
+        onChangeText={onChangeConfirm}
+        autoCapitalize="none"
+        autoCorrect={false}
+        spellCheck={false}
+        editable={!submitting}
+        placeholder={`@${handle}`}
+        placeholderTextColor={colors.textTertiary}
+        style={[
+          modalStyles.input,
+          {
+            color: colors.textPrimary,
+            borderColor: colors.gray80,
+            backgroundColor: colors.backgroundPrimary,
+          },
+        ]}
+        accessibilityLabel="Type your username to confirm deletion"
+      />
+
+      {errorMessage ? (
+        <Text style={modalStyles.errorText}>{errorMessage}</Text>
+      ) : null}
+
+      <View style={modalStyles.buttonRow}>
+        <ModalButton
+          label="Back"
+          variant="secondary"
+          onPress={onBack}
+          disabled={submitting}
+        />
+        <ModalButton
+          label={submitting ? 'Deleting…' : 'Delete account'}
+          variant="destructive"
+          onPress={onSubmit}
+          disabled={!confirmMatches || submitting}
+          loading={submitting}
+        />
+      </View>
+    </>
+  );
+}
+
+function BulletLine({ text, color }: { text: string; color: string }) {
+  return (
+    <View style={modalStyles.bulletRow}>
+      <Text style={[modalStyles.bullet, { color }]}>•</Text>
+      <Text style={[modalStyles.bulletText, { color }]}>{text}</Text>
+    </View>
+  );
+}
+
+function ModalButton({
+  label,
+  variant,
+  onPress,
+  disabled,
+  loading,
+}: {
+  label: string;
+  variant: 'secondary' | 'destructive';
+  onPress: () => void;
+  disabled?: boolean;
+  loading?: boolean;
+}) {
+  const { colors } = useTheme();
+  const bg =
+    variant === 'destructive'
+      ? Colors.cherry
+      : colors.gray100;
+  const fg =
+    variant === 'destructive' ? Colors.white : colors.textPrimary;
+
+  return (
+    <Pressable
+      onPress={disabled ? undefined : onPress}
+      disabled={disabled}
+      style={({ pressed }) => [
+        modalStyles.button,
+        {
+          backgroundColor: bg,
+          opacity: disabled ? 0.5 : pressed ? 0.8 : 1,
+        },
+      ]}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+    >
+      {loading ? (
+        <ActivityIndicator size="small" color={fg} />
+      ) : (
+        <Text style={[modalStyles.buttonLabel, { color: fg }]}>{label}</Text>
+      )}
+    </Pressable>
   );
 }
 
@@ -307,5 +633,94 @@ const styles = StyleSheet.create({
     borderColor: Colors.gray60,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+});
+
+const modalStyles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+  },
+  kavRoot: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  sheet: {
+    borderTopLeftRadius: Radius.xxl,
+    borderTopRightRadius: Radius.xxl,
+    paddingTop: Spacing.lg,
+    paddingHorizontal: Spacing.md,
+    gap: Spacing.md,
+  },
+  title: {
+    fontFamily: FontFamily.bold,
+    fontSize: FontSize.xl,
+    lineHeight: 28,
+    letterSpacing: -0.48,
+  },
+  subtitle: {
+    fontFamily: FontFamily.medium,
+    fontSize: FontSize.md,
+    lineHeight: 20,
+  },
+  section: {
+    gap: Spacing.xs,
+  },
+  sectionTitle: {
+    fontFamily: FontFamily.semiBold,
+    fontSize: FontSize.sm,
+    lineHeight: 18,
+    letterSpacing: -0.14,
+    marginBottom: Spacing.xs / 2,
+  },
+  bulletRow: {
+    flexDirection: 'row',
+    gap: Spacing.xs,
+    alignItems: 'flex-start',
+  },
+  bullet: {
+    fontFamily: FontFamily.bold,
+    fontSize: FontSize.sm,
+    lineHeight: 20,
+    width: 12,
+  },
+  bulletText: {
+    flex: 1,
+    fontFamily: FontFamily.medium,
+    fontSize: FontSize.sm,
+    lineHeight: 20,
+  },
+  input: {
+    borderWidth: 1,
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    fontFamily: FontFamily.medium,
+    fontSize: FontSize.md,
+    lineHeight: 20,
+  },
+  errorText: {
+    color: Colors.cherry,
+    fontFamily: FontFamily.medium,
+    fontSize: FontSize.sm,
+    lineHeight: 18,
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    marginTop: Spacing.xs,
+  },
+  button: {
+    flex: 1,
+    height: 48,
+    borderRadius: Radius.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  buttonLabel: {
+    fontFamily: FontFamily.semiBold,
+    fontSize: FontSize.md,
+    lineHeight: 20,
+    letterSpacing: -0.32,
   },
 });

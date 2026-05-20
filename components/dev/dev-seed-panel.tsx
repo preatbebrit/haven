@@ -13,6 +13,7 @@ import {
   seedPendingRequests,
   seedTopFriends,
 } from '@/lib/dev-seed';
+import { supabase } from '@/lib/supabase';
 
 /**
  * __DEV__-only panel. Renders nothing in production builds.
@@ -45,8 +46,13 @@ export function DevSeedPanel() {
     if (busy) return;
     setBusy(true);
     try {
-      // Full account wipe — including profile (and thus lockPin), so the
-      // welcome screen isn't covered by a stale lock overlay on reload.
+      // Sign out first so the AuthProvider session=null cascade clears
+      // userId-keyed contexts (LockProvider in particular) — without this,
+      // resetAccount wipes on-disk lock data but the in-memory PIN gate
+      // stays armed, and the boot router treats us as signed-in and
+      // bounces to chat-selection instead of welcome.
+      try { await supabase.auth.signOut(); } catch { /* non-fatal */ }
+      // Full local wipe — profile (and thus lockPin), friends, gallery, etc.
       await resetAccount();
       router.replace('/');
     } finally {

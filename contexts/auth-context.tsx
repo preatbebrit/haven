@@ -11,6 +11,7 @@ import {
 } from 'react';
 
 import { setCurrentUserId } from '@/lib/current-user';
+import { consumePendingWipe } from '@/lib/local-data-reset';
 import { SUPABASE_CONFIGURED, supabase } from '@/lib/supabase';
 
 type AuthContextValue = {
@@ -80,20 +81,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       };
     }
 
-    // Single source of truth for auth state. INITIAL_SESSION fires once on
-    // subscribe with the rehydrated session (or null) — no need for a separate
-    // getSession() call, which only added a second applySession that raced the
-    // first loadProfile against the JWT being attached to PostgREST headers
-    // (anon role → 42501 permission denied warning on cold launches).
-    const { data: sub } = supabase.auth.onAuthStateChange((event, nextSession) => {
-      if (!mountedRef.current) return;
-      applySession(nextSession);
-      if (event === 'INITIAL_SESSION') setLoading(false);
-    });
+    // Crash-recovery: the delete-account flow marks @haven/pending_local_wipe_v1
+    // before its network call. If a crash happened between server delete and
+    // local wipe, the SecureStore session may still hold a token for a deleted
+    // user. Consume the tombstone before subscribing, then signOut to drop that
+    // stale token so INITIAL_SESSION fires with null instead of a ghost session.
+    let cancelled = false;
+    let unsubscribe: (() => void) | null = null;
+
+    (async () => {
+      try {
+        const wiped = await consumePendingWipe();
+        if (wiped) {
+          // Best-effort; clears SecureStore unconditionally even if the
+          // server call fails. Don't pass scope here — the user is already
+          // server-side gone, no extra revoke needed.
+          try { await supabase.auth.signOut(); } catch { /* non-fatal */ }
+        }
+      } catch {
+        /* non-fatal — boot continues either way */
+      }
+
+      if (cancelled || !mountedRef.current) return;
+
+      // Single source of truth for auth state. INITIAL_SESSION fires once on
+      // subscribe with the rehydrated session (or null) — no need for a separate
+      // getSession() call, which only added a second applySession that raced the
+      // first loadProfile against the JWT being attached to PostgREST headers
+      // (anon role → 42501 permission denied warning on cold launches).
+      const { data: sub } = supabase.auth.onAuthStateChange((event, nextSession) => {
+        if (!mountedRef.current) return;
+        applySession(nextSession);
+        if (event === 'INITIAL_SESSION') setLoading(false);
+      });
+      unsubscribe = () => sub.subscription.unsubscribe();
+    })();
 
     return () => {
+      cancelled = true;
       mountedRef.current = false;
-      sub.subscription.unsubscribe();
+      if (unsubscribe) unsubscribe();
     };
   }, [applySession]);
 

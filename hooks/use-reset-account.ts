@@ -6,14 +6,20 @@ import { useFriends } from '@/contexts/friends-context';
 import { useNotificationsContext } from '@/contexts/notifications-context';
 import { wipeAllLocalData } from '@/lib/local-data-reset';
 
-// Wipes persisted data and resets every in-memory context to its
-// fresh-account state. Without the in-memory reset, the next render
-// would still see the previous user's friends, active chat, etc.,
-// because providers hydrate from AsyncStorage once on mount.
+// DEV / utility hook: wipe persisted data and reload in-memory context state.
+// Production "delete account" lives in useDeleteAccount — do not use this
+// hook for that, it does not call signOut or the server-side delete.
 //
-// Lock state isn't reset here: wipeAllLocalData drops the entire @haven/*
-// namespace (including per-user lock keys), and LockProvider's session-watch
-// effect clears in-memory lock state when the caller signs out.
+// Contract: this is local-only. It does NOT invalidate the Supabase session.
+// Callers that want the session gone must call supabase.auth.signOut()
+// themselves. Forgetting to do so leaves a live JWT in SecureStore and a
+// stale userId in AuthProvider, which keeps userId-keyed contexts
+// (LockProvider in particular) holding pre-wipe state until the next
+// session change.
+//
+// Without the in-memory reload below, the next render would still see the
+// previous user's friends, active chat, etc., because most providers
+// hydrate from AsyncStorage only on mount.
 export function useResetAccount(): () => Promise<void> {
   const { refresh: refreshCurrentUser } = useCurrentUser();
   const { reloadAll: reloadFriends } = useFriends();
