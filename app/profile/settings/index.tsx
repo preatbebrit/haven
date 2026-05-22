@@ -1,7 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from '@react-navigation/native';
 import { Stack, useRouter } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -26,12 +25,12 @@ import { useAuth } from '@/contexts/auth-context';
 import { useCurrentUser } from '@/contexts/current-user-context';
 import { useFriends } from '@/contexts/friends-context';
 import { useLock } from '@/contexts/lock-context';
+import type { OutStatus } from '@/contexts/onboarding-context';
 import { useDeleteAccount } from '@/hooks/use-delete-account';
 import { useTheme } from '@/hooks/use-theme';
-import { EMPTY_PROFILE, getProfile, type StoredProfile } from '@/lib/profile-storage';
 import { type ThemeMode } from '@/lib/theme-mode-storage';
 
-const OUT_STATUS_LABELS: Record<NonNullable<StoredProfile['outStatus']>, string> = {
+const OUT_STATUS_LABELS: Record<OutStatus, string> = {
   yes: 'Yes',
   no: 'No',
   'sort-of': 'Sort of',
@@ -51,9 +50,8 @@ const PLACEHOLDER_IDENTITIES = ['Pangender', 'Out', 'AAPI', 'Neurodivergent'];
 export default function SettingsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const [profile, setProfile] = useState<StoredProfile>(EMPTY_PROFILE);
   const { mode: themeMode, setMode: setThemeMode, colors } = useTheme();
-  const { me } = useCurrentUser();
+  const { me, currentUser } = useCurrentUser();
   const { signOut } = useAuth();
   const { hasActivePin } = useLock();
   const { state: deleteState, deleteAccount, dismissError } = useDeleteAccount();
@@ -61,20 +59,6 @@ export default function SettingsScreen() {
   // 'warn' = data-fate disclosure; 'confirm' = typed-username confirmation.
   const [deleteStep, setDeleteStep] = useState<'warn' | 'confirm'>('warn');
   const [confirmText, setConfirmText] = useState('');
-
-  useFocusEffect(
-    useCallback(() => {
-      let alive = true;
-      (async () => {
-        const p = await getProfile();
-        if (!alive) return;
-        setProfile(p);
-      })();
-      return () => {
-        alive = false;
-      };
-    }, []),
-  );
 
   const { currentUserId, shares } = useFriends();
   const shareCounts = useMemo(() => {
@@ -86,14 +70,19 @@ export default function SettingsScreen() {
     return counts;
   }, [shares, currentUserId]);
 
-  const currentHandle = profile.username.trim() || me.handle;
+  const currentHandle = (currentUser?.username ?? '').trim() || me.handle;
   const pronounsLabel =
-    profile.pronounsCustom.trim() || profile.pronounPreset || PLACEHOLDER_PRONOUNS;
-  const outStatusLabel = profile.outStatus ? OUT_STATUS_LABELS[profile.outStatus] : '—';
-  const acceptingLabel = profile.acceptingEnvironment ?? '—';
+    (currentUser?.pronouns_custom ?? '').trim() ||
+    currentUser?.pronoun_preset ||
+    PLACEHOLDER_PRONOUNS;
+  const outStatusLabel = currentUser?.out_status
+    ? OUT_STATUS_LABELS[currentUser.out_status]
+    : '—';
+  const acceptingLabel = currentUser?.accepting_environment ?? '—';
   const lockLabel = hasActivePin ? 'On' : 'Off';
+  const identityTags = currentUser?.identity_tags ?? [];
   const effectiveIdentities =
-    profile.identities.length > 0 ? profile.identities : PLACEHOLDER_IDENTITIES;
+    identityTags.length > 0 ? identityTags : PLACEHOLDER_IDENTITIES;
   const identityLabel =
     effectiveIdentities.length === 1
       ? effectiveIdentities[0]
@@ -174,7 +163,7 @@ export default function SettingsScreen() {
             <SettingsRow label="Username" value={`@${currentHandle}`} readOnly />
             <SettingsRow
               label="Birthday"
-              value={profile.dateOfBirth || '—'}
+              value={currentUser?.date_of_birth || '—'}
               readOnly
             />
             <SettingsRow

@@ -1,16 +1,16 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { EmptyState } from '@/components/friends/empty-state';
 import { AppHeader } from '@/components/ui/app-header';
 import { GenderAvatar, getAvatarColors } from '@/components/ui/gender-avatar';
+import { Toast } from '@/components/ui/toast';
 import { Colors, FontFamily, Radius, Spacing } from '@/constants/theme';
 import { useFriends } from '@/contexts/friends-context';
 import { useTheme } from '@/hooks/use-theme';
-import { setPendingToast } from '@/lib/pending-toast';
 import { getProfileById } from '@/lib/profile-directory';
 
 export default function BlockedSettingsScreen() {
@@ -18,6 +18,9 @@ export default function BlockedSettingsScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const { currentUserId, blocks, unblockUser } = useFriends();
+  // No router.back() here — the screen stays mounted after unblock, so the
+  // inline toast is the whole UX. No setTimeout / backTimerRef needed.
+  const [toast, setToast] = useState<string | null>(null);
 
   const rows = useMemo(() => {
     return blocks
@@ -46,7 +49,7 @@ export default function BlockedSettingsScreen() {
           text: 'Unblock',
           onPress: async () => {
             await unblockUser(id);
-            setPendingToast(`Unblocked @${handle}`);
+            setToast(`Unblocked @${handle}`);
           },
         },
       ],
@@ -56,6 +59,7 @@ export default function BlockedSettingsScreen() {
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
+      <Toast message={toast} onDismiss={() => setToast(null)} />
       <View style={[styles.screen, { backgroundColor: colors.backgroundPrimary }]}>
         <AppHeader
           left={{

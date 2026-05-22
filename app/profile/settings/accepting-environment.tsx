@@ -1,52 +1,70 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PrimaryNextButton } from '@/components/onboarding/primary-next-button';
 import { AppHeader } from '@/components/ui/app-header';
 import { CheckIcon } from '@/components/ui/icons/check-icon';
+import { Toast } from '@/components/ui/toast';
 import { ACCEPTING_ENVIRONMENT_OPTIONS } from '@/constants/onboarding-options';
 import { Colors, FontFamily, FontSize, Spacing } from '@/constants/theme';
+import { useAuth } from '@/contexts/auth-context';
+import { useCurrentUser } from '@/contexts/current-user-context';
 import { useTheme } from '@/hooks/use-theme';
-import { setPendingToast } from '@/lib/pending-toast';
-import { getProfile, setProfile } from '@/lib/profile-storage';
+import { supabase } from '@/lib/supabase';
+
+// Toast holds on-screen briefly before we pop the stack so the user sees the
+// confirmation on the screen they acted on, not on /profile.
+const SAVE_TOAST_HOLD_MS = 800;
 
 export default function AcceptingEnvironmentSettingsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
+  const { session, updateProfilePrivate } = useAuth();
+  const { currentUser } = useCurrentUser();
 
-  const [value, setValue] = useState<string | null>(null);
-  const [initial, setInitial] = useState<string | null>(null);
+  const initial = currentUser?.accepting_environment ?? null;
+  const [value, setValue] = useState<string | null>(initial);
   const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+  // Tracked so an early back-tap during the hold doesn't fire a stale
+  // router.back() after the screen has already unmounted.
+  const backTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
-    let alive = true;
-    getProfile().then((p) => {
-      if (!alive) return;
-      setValue(p.acceptingEnvironment);
-      setInitial(p.acceptingEnvironment);
-    });
-    return () => {
-      alive = false;
-    };
-  }, []);
+  useEffect(
+    () => () => {
+      if (backTimerRef.current !== null) clearTimeout(backTimerRef.current);
+    },
+    [],
+  );
 
   const hasChange = value !== initial;
 
   async function handleSave() {
-    if (!hasChange || saving) return;
+    if (!hasChange || saving || !session) return;
     setSaving(true);
-    await setProfile({ acceptingEnvironment: value });
-    setPendingToast('Saved');
-    router.back();
+    const patch = { accepting_environment: value };
+    const { error } = await supabase
+      .from('profiles_private')
+      .update(patch)
+      .eq('id', session.user.id);
+    if (error) {
+      setSaving(false);
+      Alert.alert("Couldn't save. Check your connection.");
+      return;
+    }
+    updateProfilePrivate(patch);
+    setToast('Saved');
+    backTimerRef.current = setTimeout(() => router.back(), SAVE_TOAST_HOLD_MS);
   }
 
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
+      <Toast message={toast} onDismiss={() => setToast(null)} />
       <View style={[styles.screen, { backgroundColor: colors.backgroundPrimary }]}>
         <AppHeader
           left={{

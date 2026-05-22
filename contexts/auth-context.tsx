@@ -80,6 +80,17 @@ type AuthContextValue = {
    * so legacy consumers keep behaving exactly as they did before chunk 2.
    */
   profileUsername: string | null | undefined;
+  /**
+   * Write-through helper. Merges a patch into the loaded profiles_public row.
+   * No-op when profileState isn't 'loaded' — callers are settings screens
+   * gated behind the boot gate, so the loaded branch is the expected case.
+   * Synchronous: the Supabase write is the caller's responsibility; this
+   * only updates local React state so dependent screens render the new value
+   * immediately (chunk 2 removed the focus-effect refetch). See §A.
+   */
+  updateProfilePublic: (patch: Partial<ProfilePublic>) => void;
+  /** Same contract as updateProfilePublic, for profiles_private. */
+  updateProfilePrivate: (patch: Partial<ProfilePrivate>) => void;
   signOut: () => Promise<void>;
 };
 
@@ -290,6 +301,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
   }, []);
 
+  // Write-through helpers (§A of chunk 3). Functional setState avoids stale
+  // closures when multiple patches land in the same React batch.
+  const updateProfilePublic = useCallback((patch: Partial<ProfilePublic>) => {
+    setProfileState((prev) => {
+      if (prev.kind !== 'loaded') return prev;
+      return { ...prev, public: { ...prev.public, ...patch } };
+    });
+  }, []);
+
+  const updateProfilePrivate = useCallback((patch: Partial<ProfilePrivate>) => {
+    setProfileState((prev) => {
+      if (prev.kind !== 'loaded') return prev;
+      return { ...prev, private: { ...prev.private, ...patch } };
+    });
+  }, []);
+
   // Legacy backward-compat field. Maps the new ProfileState back to the old
   // tri-valued sentinel. Error → null deliberately preserves the legacy
   // mis-routing behavior in app/auth/email.tsx, which we're not touching in
@@ -315,6 +342,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       refreshProfile,
       refreshProfileWithRetry,
       profileUsername,
+      updateProfilePublic,
+      updateProfilePrivate,
       signOut,
     }),
     [
@@ -324,6 +353,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       refreshProfile,
       refreshProfileWithRetry,
       profileUsername,
+      updateProfilePublic,
+      updateProfilePrivate,
       signOut,
     ],
   );

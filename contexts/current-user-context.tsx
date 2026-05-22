@@ -121,6 +121,7 @@ function buildFromLoaded(
   const tags: string[] = [];
   if (genderTitle) tags.push(genderTitle);
   if (priv.out_status === 'yes') tags.push('Out');
+  else if (priv.out_status === 'sort-of') tags.push('Sort-of out');
   else if (priv.out_status === 'no') tags.push('Not out');
   tags.push(...priv.identity_tags);
 

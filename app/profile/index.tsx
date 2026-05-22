@@ -3,6 +3,7 @@ import { Image as ExpoImage } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { Stack, useRouter } from 'expo-router';
 import {
+  Alert,
   Animated,
   BackHandler,
   Modal,
@@ -38,9 +39,10 @@ import {
 } from '@/constants/mock-groups';
 import { Colors, FontFamily, FontSize, Radius, Spacing, TextStyle, type PromptColors } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { useAuth } from '@/contexts/auth-context';
 import { useCurrentUser } from '@/contexts/current-user-context';
-import { clearBio, getBio, setBio } from '@/lib/bio-storage';
 import { popPendingToast } from '@/lib/pending-toast';
+import { supabase } from '@/lib/supabase';
 import {
   clearProfileTransitionSource,
   getProfileTransitionSource,
@@ -175,7 +177,6 @@ export default function ProfileScreen() {
   const { friends: friendCount } = useFriendCounts();
   const { friendsWithUnreadCount, markVisibleOnProfile } = useNotifications();
 
-  const [bio, setBioState] = useState<string | null>(null);
   const [gallery, setGalleryState] = useState<GallerySlots>(() =>
     Array.from({ length: GALLERY_SIZE }, () => null)
   );
@@ -184,7 +185,12 @@ export default function ProfileScreen() {
   const [savedAnswers, setSavedAnswers] = useState<
     { groupId: string; answer: string; createdAt: number }[]
   >([]);
-  const { displayProfile } = useCurrentUser();
+  const { displayProfile, currentUser } = useCurrentUser();
+  const { session, updateProfilePublic } = useAuth();
+  // Profile screen mounts behind the boot gate, so currentUser is the loaded
+  // row. Treat null as "" so ProfileInfoBlock's loading branch (which exists
+  // for the now-removed async fetch) never triggers here.
+  const bio = currentUser?.bio ?? '';
 
   // Build prompt cards from the user's actual saved answers (one per chat
   // they've joined and answered). Static identity fields come from the live
@@ -270,7 +276,6 @@ export default function ProfileScreen() {
   );
 
   useEffect(() => {
-    getBio().then((v) => setBioState(v ?? ''));
     getGallery().then(setGalleryState);
   }, []);
 
@@ -355,12 +360,26 @@ export default function ProfileScreen() {
   }
 
   async function handleBioSubmit(next: string) {
-    if (next.length === 0) {
-      await clearBio();
-      setBioState('');
-    } else {
-      await setBio(next);
-      setBioState(next);
+    if (!session) return;
+    // Empty bio stored as null in profiles_public.bio so RLS-safe nullability
+    // matches the schema.
+    const value = next.length === 0 ? null : next;
+    // Optimistic update: the child closes edit mode synchronously on submit,
+    // so if we awaited the network round-trip before patching the in-memory
+    // bio, the read-mode would render the old value for 100–400 ms before
+    // the new value replaced it. Capture the previous value before the
+    // optimistic patch so a failed write can roll back to exactly what was
+    // on screen.
+    const previousBio = currentUser?.bio ?? null;
+    const patch = { bio: value };
+    updateProfilePublic(patch);
+    const { error } = await supabase
+      .from('profiles_public')
+      .update(patch)
+      .eq('id', session.user.id);
+    if (error) {
+      updateProfilePublic({ bio: previousBio });
+      Alert.alert("Couldn't save.");
     }
   }
 

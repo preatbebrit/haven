@@ -1,39 +1,46 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PrimaryNextButton } from '@/components/onboarding/primary-next-button';
 import { AppHeader } from '@/components/ui/app-header';
 import { CheckIcon } from '@/components/ui/icons/check-icon';
+import { Toast } from '@/components/ui/toast';
 import { IDENTITY_OPTIONS } from '@/constants/onboarding-options';
 import { Colors, FontFamily, FontSize, Spacing } from '@/constants/theme';
+import { useAuth } from '@/contexts/auth-context';
+import { useCurrentUser } from '@/contexts/current-user-context';
 import { useTheme } from '@/hooks/use-theme';
-import { setPendingToast } from '@/lib/pending-toast';
-import { getProfile, setProfile } from '@/lib/profile-storage';
+import { supabase } from '@/lib/supabase';
+
+// Hold the toast on-screen briefly before popping so the user sees the
+// confirmation here instead of on /profile.
+const SAVE_TOAST_HOLD_MS = 800;
 
 export default function IdentitySettingsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
+  const { session, updateProfilePrivate } = useAuth();
+  const { currentUser } = useCurrentUser();
 
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [initial, setInitial] = useState<Set<string>>(new Set());
+  const initial = useMemo(
+    () => new Set(currentUser?.identity_tags ?? []),
+    [currentUser?.identity_tags],
+  );
+  const [selected, setSelected] = useState<Set<string>>(() => new Set(initial));
   const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+  const backTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
-    let alive = true;
-    getProfile().then((p) => {
-      if (!alive) return;
-      const s = new Set(p.identities);
-      setSelected(s);
-      setInitial(new Set(s));
-    });
-    return () => {
-      alive = false;
-    };
-  }, []);
+  useEffect(
+    () => () => {
+      if (backTimerRef.current !== null) clearTimeout(backTimerRef.current);
+    },
+    [],
+  );
 
   function toggle(item: string) {
     setSelected((prev) => {
@@ -51,16 +58,27 @@ export default function IdentitySettingsScreen() {
   }, [selected, initial]);
 
   async function handleSave() {
-    if (!hasChange || saving) return;
+    if (!hasChange || saving || !session) return;
     setSaving(true);
-    await setProfile({ identities: Array.from(selected) });
-    setPendingToast('Saved');
-    router.back();
+    const patch = { identity_tags: Array.from(selected) };
+    const { error } = await supabase
+      .from('profiles_private')
+      .update(patch)
+      .eq('id', session.user.id);
+    if (error) {
+      setSaving(false);
+      Alert.alert("Couldn't save. Check your connection.");
+      return;
+    }
+    updateProfilePrivate(patch);
+    setToast('Saved');
+    backTimerRef.current = setTimeout(() => router.back(), SAVE_TOAST_HOLD_MS);
   }
 
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
+      <Toast message={toast} onDismiss={() => setToast(null)} />
       <View style={[styles.screen, { backgroundColor: colors.backgroundPrimary }]}>
         <AppHeader
           left={{

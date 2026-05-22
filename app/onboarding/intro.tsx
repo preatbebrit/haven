@@ -1,6 +1,7 @@
 import { useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import {
+  Alert,
   Image,
   LayoutChangeEvent,
   StyleSheet,
@@ -20,9 +21,10 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PrimaryNextButton } from '@/components/onboarding/primary-next-button';
-import { markIntroSeen } from '@/lib/intro-storage';
+import { useAuth } from '@/contexts/auth-context';
 import { Colors, FontFamily, FontSize, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { supabase } from '@/lib/supabase';
 
 const tutorialImage1 = require('@/assets/images/tutorial-1.png');
 const tutorialImage2 = require('@/assets/images/tutorial-2.png');
@@ -66,6 +68,7 @@ export default function OnboardingIntroScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
+  const { session, updateProfilePublic } = useAuth();
   const [pageWidth, setPageWidth] = useState(0);
   const [progressTop, setProgressTop] = useState(0);
   // Slide 0 starts visible, so it counts as seen on mount. Once all three are
@@ -101,9 +104,22 @@ export default function OnboardingIntroScreen() {
 
   const handleNext = useCallback(async () => {
     if (!allSeen) return;
-    await markIntroSeen();
+    if (session) {
+      const { error } = await supabase
+        .from('profiles_public')
+        .update({ intro_seen: true })
+        .eq('id', session.user.id);
+      if (error) {
+        // Surface but don't block — the user can keep going; we'll re-show
+        // the intro next launch (boot gate reads intro_seen off the loaded
+        // profile, so a missed write is recoverable).
+        Alert.alert("Couldn't save. We'll try again next time.");
+      } else {
+        updateProfilePublic({ intro_seen: true });
+      }
+    }
     router.replace('/(tabs)/chat-selection');
-  }, [allSeen, router]);
+  }, [allSeen, router, session, updateProfilePublic]);
 
   const onPagerLayout = (e: LayoutChangeEvent) => {
     const w = e.nativeEvent.layout.width;

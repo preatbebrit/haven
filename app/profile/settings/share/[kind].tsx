@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -10,12 +10,16 @@ import { PrimaryNextButton } from '@/components/onboarding/primary-next-button';
 import { AppHeader } from '@/components/ui/app-header';
 import type { GenderSymbol } from '@/components/ui/gender-avatar';
 import { HoldToConfirmButton } from '@/components/ui/hold-to-confirm-button';
+import { Toast } from '@/components/ui/toast';
 import { Colors, FontFamily, Radius, Spacing } from '@/constants/theme';
 import { useFriends } from '@/contexts/friends-context';
 import { useTheme } from '@/hooks/use-theme';
-import { setPendingToast } from '@/lib/pending-toast';
 import { getProfileById } from '@/lib/profile-directory';
 import type { ShareKind } from '@/lib/profile-shares-storage';
+
+// Hold the toast on-screen briefly before popping so the user sees the
+// confirmation here instead of on /profile.
+const SAVE_TOAST_HOLD_MS = 800;
 
 type FriendItem = {
   id: string;
@@ -80,6 +84,15 @@ export default function SettingsShareScreen() {
   // empty-state view — same visual as if the user had landed here with no
   // existing shares.
   const [allCleared, setAllCleared] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+  const backTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(
+    () => () => {
+      if (backTimerRef.current !== null) clearTimeout(backTimerRef.current);
+    },
+    [],
+  );
 
   const hasDiff = useMemo(() => {
     if (selected.size !== sharedViewerIds.size) return true;
@@ -108,8 +121,8 @@ export default function SettingsShareScreen() {
     // Sequential to avoid the read-then-write race in profile-shares-storage.
     for (const id of added) await shareWith(id, kind);
     for (const id of removed) await unshareWith(id, kind);
-    setPendingToast('Changes saved');
-    router.back();
+    setToast('Changes saved');
+    backTimerRef.current = setTimeout(() => router.back(), SAVE_TOAST_HOLD_MS);
   }
 
   async function handleStopAll() {
@@ -129,6 +142,7 @@ export default function SettingsShareScreen() {
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
+      <Toast message={toast} onDismiss={() => setToast(null)} />
       <View style={[styles.screen, { backgroundColor: colors.backgroundPrimary }]}>
         <AppHeader
           left={{

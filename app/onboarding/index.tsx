@@ -28,7 +28,6 @@ import { StepOutStatus } from '@/components/onboarding/steps/step-out-status';
 import { StepPronouns } from '@/components/onboarding/steps/step-pronouns';
 import { StepUsername } from '@/components/onboarding/steps/step-username';
 import { useAuth } from '@/contexts/auth-context';
-import { useCurrentUser } from '@/contexts/current-user-context';
 import { useLock } from '@/contexts/lock-context';
 import { useOnboarding } from '@/contexts/onboarding-context';
 import {
@@ -39,8 +38,6 @@ import {
 } from '@/contexts/step-flow-context';
 import { Colors, FontFamily, FontSize, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { hasSeenIntro } from '@/lib/intro-storage';
-import { setProfile } from '@/lib/profile-storage';
 import { supabase } from '@/lib/supabase';
 
 const TOTAL_STEPS = 7;
@@ -78,8 +75,7 @@ export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const onboarding = useOnboarding();
-  const { refresh: refreshCurrentUser } = useCurrentUser();
-  const { session, refreshProfile } = useAuth();
+  const { session, refreshProfileWithRetry } = useAuth();
   const lock = useLock();
 
   const [step, setStep] = useState(1);
@@ -159,57 +155,75 @@ export default function OnboardingScreen() {
   }, []);
 
   const finish = useCallback(async () => {
-    await setProfile({
+    if (!session) return;
+
+    // Lock PIN persists to SecureStore under the signed-in user's namespace.
+    // Independent of the profile RPC — done first so the lock challenge state
+    // is consistent regardless of how complete_onboarding resolves.
+    if (onboarding.lockPin) {
+      await lock.setLockPin(onboarding.lockPin);
+    } else if (onboarding.lockSkipped) {
+      await lock.clearLockPin();
+    }
+
+    // Single-jsonb payload matching the complete_onboarding RPC. Field names
+    // mirror the column names in profiles_public/profiles_private exactly —
+    // the RPC uses payload->>'<column>' to extract each value.
+    const payload = {
       username: onboarding.username,
-      dateOfBirth: onboarding.dateOfBirth,
-      genderId: onboarding.genderId,
-      pronounPreset: onboarding.pronounPreset,
-      pronounsCustom: onboarding.pronounsCustom,
-      outStatus: onboarding.outStatus,
-      acceptingEnvironment: onboarding.acceptingEnvironment,
-      identities: onboarding.identities,
-    });
-    // Sync CurrentUserProvider with the just-written profile so chat-selection
-    // highlights real identity tags instead of the empty-profile fallback.
-    await refreshCurrentUser();
-    // Write the PIN under the signed-in user's namespace. setLockPin also
-    // marks the session as just-unlocked, so the lock overlay won't trigger
-    // immediately after onboarding finishes. Sign-out → sign-in will
-    // re-challenge as expected.
-    if (session) {
-      if (onboarding.lockPin) {
-        await lock.setLockPin(onboarding.lockPin);
-      } else if (onboarding.lockSkipped) {
-        await lock.clearLockPin();
+      date_of_birth: onboarding.dateOfBirth,
+      gender_id: onboarding.genderId,
+      pronoun_preset: onboarding.pronounPreset,
+      pronouns_custom: onboarding.pronounsCustom,
+      out_status: onboarding.outStatus,
+      accepting_environment: onboarding.acceptingEnvironment,
+      identity_tags: onboarding.identities,
+    };
+
+    const { error } = await supabase.rpc('complete_onboarding', { payload });
+
+    if (error) {
+      // §11.5 errcode map. Codes raised by the RPC, plus 23505 from the
+      // unique_violation re-raise path inside the inner exception block.
+      switch (error.code) {
+        case '23505':
+          Alert.alert('Username taken. Pick a different one.');
+          setStep(1);
+          return;
+        case 'P0010':
+          Alert.alert('That username is reserved. Try another.');
+          setStep(1);
+          return;
+        case 'P0011':
+          Alert.alert('Use 4–15 letters, numbers, ., _, or -. Start and end with a letter or number.');
+          setStep(1);
+          return;
+        case 'P0012':
+          Alert.alert('Use 4–15 characters.');
+          setStep(1);
+          return;
+        case '22023':
+          Alert.alert("Something's missing. Check your information and try again.");
+          return;
+        case '28000':
+          Alert.alert('Sign in expired. Sign in again.');
+          router.replace('/auth/email');
+          return;
+        default:
+          Alert.alert('Something went wrong. Try again.');
+          return;
       }
     }
 
-    // Persist username to Supabase so the boot gate in app/index.tsx knows the
-    // profile is complete on next launch. The full profile (pronouns, gender,
-    // identities, bio, etc.) syncs to Supabase in Phase B.
-    if (session) {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ username: onboarding.username })
-        .eq('id', session.user.id);
-      if (error) {
-        if (error.code === '23505') {
-          Alert.alert('Username taken', 'Pick a different one and try again.');
-        } else {
-          Alert.alert('Could not save profile', error.message);
-        }
-        return;
-      }
-      await refreshProfile();
-    }
-
-    const seen = await hasSeenIntro();
-    if (seen) {
-      router.replace('/(tabs)/chat-selection');
-    } else {
+    // 3-attempt refetch — success of the write is committed; we just need
+    // the in-memory profile to reflect it before the boot gate routes.
+    const result = await refreshProfileWithRetry();
+    if (result.kind === 'loaded') {
       router.replace('/onboarding/intro');
+    } else {
+      Alert.alert('Saved — but having trouble loading. Try opening Haven again in a moment.');
     }
-  }, [router, onboarding, refreshCurrentUser, lock, session, refreshProfile]);
+  }, [router, onboarding, lock, session, refreshProfileWithRetry]);
 
   const handleBack = useCallback(() => {
     if (backOverride) {

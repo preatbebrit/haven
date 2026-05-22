@@ -1,7 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
+  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -17,32 +18,37 @@ import { GlowUnderline } from '@/components/onboarding/glow-underline';
 import { PrimaryNextButton } from '@/components/onboarding/primary-next-button';
 import { AppHeader } from '@/components/ui/app-header';
 import { CheckIcon } from '@/components/ui/icons/check-icon';
+import { Toast } from '@/components/ui/toast';
 import { PRONOUN_PRESETS } from '@/constants/onboarding-options';
 import { Colors, FontFamily, FontSize, Spacing } from '@/constants/theme';
+import { useAuth } from '@/contexts/auth-context';
+import { useCurrentUser } from '@/contexts/current-user-context';
 import { useTheme } from '@/hooks/use-theme';
-import { setPendingToast } from '@/lib/pending-toast';
-import { getProfile, setProfile } from '@/lib/profile-storage';
+import { supabase } from '@/lib/supabase';
+
+// Hold the toast on-screen briefly before popping so the user sees the
+// confirmation here instead of on /profile.
+const SAVE_TOAST_HOLD_MS = 800;
 
 export default function PronounsSettingsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
+  const { session, updateProfilePrivate } = useAuth();
+  const { currentUser } = useCurrentUser();
 
-  const [preset, setPreset] = useState<string | null>(null);
-  const [custom, setCustom] = useState('');
+  const [preset, setPreset] = useState<string | null>(currentUser?.pronoun_preset ?? null);
+  const [custom, setCustom] = useState<string>(currentUser?.pronouns_custom ?? '');
   const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+  const backTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
-    let alive = true;
-    getProfile().then((p) => {
-      if (!alive) return;
-      setPreset(p.pronounPreset);
-      setCustom(p.pronounsCustom);
-    });
-    return () => {
-      alive = false;
-    };
-  }, []);
+  useEffect(
+    () => () => {
+      if (backTimerRef.current !== null) clearTimeout(backTimerRef.current);
+    },
+    [],
+  );
 
   const customTrim = custom.trim();
   const hasSelection = Boolean(preset) || customTrim.length > 0;
@@ -58,19 +64,32 @@ export default function PronounsSettingsScreen() {
   }
 
   async function handleSave() {
-    if (!hasSelection || saving) return;
+    if (!hasSelection || saving || !session) return;
     setSaving(true);
-    await setProfile({
-      pronounPreset: preset,
-      pronounsCustom: custom,
-    });
-    setPendingToast('Saved');
-    router.back();
+    // Normalize empty string → null to match the convention in complete_onboarding
+    // (nullif(..., '')) so the row reads consistently regardless of write path.
+    const patch = {
+      pronoun_preset: preset,
+      pronouns_custom: customTrim.length === 0 ? null : custom,
+    };
+    const { error } = await supabase
+      .from('profiles_private')
+      .update(patch)
+      .eq('id', session.user.id);
+    if (error) {
+      setSaving(false);
+      Alert.alert("Couldn't save. Check your connection.");
+      return;
+    }
+    updateProfilePrivate(patch);
+    setToast('Saved');
+    backTimerRef.current = setTimeout(() => router.back(), SAVE_TOAST_HOLD_MS);
   }
 
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
+      <Toast message={toast} onDismiss={() => setToast(null)} />
       <KeyboardAvoidingView
         style={[styles.screen, { backgroundColor: colors.backgroundPrimary }]}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
