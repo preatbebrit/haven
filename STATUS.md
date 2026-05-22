@@ -1,7 +1,7 @@
 # Haven — Project Status
 
 **Repo:** `github.com/preatbebrit/haven` (branch `main`)
-**Last commit:** `32717dc` — Add STATUS.md (this file's first version)
+**Last commit:** `c59ecb7` — Phase 1, chunk 3 (chunk 4 cleanup + this STATUS.md entry uncommitted)
 
 ## ✅ Done & committed
 - Supabase auth (signup, profile trigger, RLS, onboarding) — `5e0f3bf`
@@ -11,6 +11,10 @@
 - **Per-account lock** — `2caeda1` — safety-verified across the load-bearing tests (Tests 1, 2, 4, background re-lock).
 - **Delete-account implementation (server-side, anonymize, audit-logged)** — `d7c6a3d` — implemented per approved plan; Edge Function deployed; migration applied; service role key set as function secret. **Test pass paused mid-flight** due to discovery of the broader data-layer architectural gap.
 - STATUS.md introduced — `32717dc`
+- **Phase 1, chunk 1** (profile schema split, reserved usernames) — `aa9ffef`
+- **Phase 1, chunk 2** (`ProfileState` union, parallel fetch, four-state boot gate) — `b61d7d9`
+- **Phase 1, chunk 3** (`complete_onboarding` RPC, settings write-through, validation UX) — `c59ecb7`
+- **Phase 1, chunk 4** (cleanup: legacy storage modules deleted, dev-seed pruned, this STATUS.md entry) — uncommitted
 
 ## 🔴 Active priority — data-layer architectural chapter (in progress)
 The codebase was originally built single-user-on-device and the data layer was never updated for multi-user use. We've now done the architectural planning: every data type has a deliberate home, the work is sequenced into 6 phases, and Phase 1 is mid-planning.
@@ -31,19 +35,38 @@ Device-wide, no change: theme mode.
 - **Chat count and friend count are computed on read** (no denormalized columns). `chat_count` is lifetime — `chat_members` rows persist past chat expiry as historical record. `friend_count` is current.
 
 ### Phase sequence
-1. **Profile + bio + intro flag** (active — plan revised, awaiting fresh-eyes review)
+1. **Profile + bio + intro flag** — shipped (see Phase 1 follow-ups below)
 2. Gallery
 3. Safety social-graph (blocks, reports, shares — full implementation)
 4. Friendships, friend requests, top friends (incl. unfriend cascade for shares)
 5. Chat membership + prompt answers
 6. Device-local cleanup (notifications-seen, possible UI pointer)
 
-### Phase 1 status — REVISED PLAN AWAITING REVIEW
-- Claude Code produced an initial plan; reviewed against feedback from ChatGPT (third-party perspective).
-- Major revision: **split tables (`profiles_public` + `profiles_private`) instead of `profile_view`** for structural privacy enforcement.
-- Other revisions folded in: explicit fetch-error state in ProfileState union (no more routing existing users to onboarding on a network blip), `source` column on `profile_shares` for future flexibility, versioned migration key (`@haven/profile_schema_version`) instead of boolean tombstone, `complete_onboarding` RPC added by Claude Code for cross-table atomicity.
-- **Revised plan is in this conversation, awaiting careful tomorrow-with-fresh-eyes review before implementation approval.**
-- Open questions in the plan to be answered tomorrow: backfill semantics for existing accounts, `profile_shares.source` initial vocabulary, error screen copy, RPC vs parallel updates for onboarding, all-null vs upload-legacy backfill.
+### Phase 1 status — SHIPPED
+- Plan ratified after ChatGPT third-party-perspective review. Final architecture: split tables (`profiles_public` + `profiles_private`), `ProfileState` union with explicit fetch-error state, versioned client migration key (`@haven/profile_schema_version`), `complete_onboarding` RPC for cross-table atomic writes, `source` column on `profile_shares` for future flexibility.
+- Shipped in four chunks: `aa9ffef`, `b61d7d9`, `c59ecb7`, plus chunk 4 cleanup uncommitted.
+- Follow-ups listed below.
+
+## Phase 1 follow-ups
+
+### Pre-launch (must address before real users)
+- **Separate dev environment.** Phase 1 migrations ran against `main PRODUCTION` because it's the only Supabase branch. Set up either Supabase branching (Pro plan, ~$25/mo) or a separate `haven-dev` project (free tier) so future migrations get tested somewhere they cannot hurt real data.
+- **BootError escape hatch.** Currently the only way out of the BootError screen is Try Again or force-quit. Add a small sign-out link at the bottom for users genuinely stuck (e.g., expired session, broken network, captive portal).
+- **Username availability check rate-limiting.** The step-username availability check fires a direct `profiles_public` query per ~400ms of typing. Pre-launch, move behind an RPC with per-user rate-limiting when general rate-limiting is wired up.
+- **`email.tsx` loading overlay polish.** The opaque white blocker + spinner during sign-in is heavy-handed. Replace with a lighter loading state (button text change, small in-button spinner). Bundle this fix with the in-progress auth-keyboard work commit; do not touch `email.tsx` in isolation.
+
+### Phase 1.1 (small follow-ups, no blocker)
+- **Strict nullability for `me` / `displayProfile` in `current-user-context`.** Currently empty-string placeholders that the boot gate masks. Replace with `CurrentUser | null` and `ProfilePublic | null`, update ~5 consumers (`app/prompt.tsx`, `app/answers.tsx`, `app/chat.tsx`, `components/home/group-card.tsx`) to null-check. New code should prefer the nullable `currentUser` field already exposed.
+- **ISO date normalization for `date_of_birth`.** Onboarding stores `MM/DD/YYYY` and relies on Postgres `DateStyle = 'ISO, MDY'` to parse correctly. ISO-normalize client-side before send to remove the DateStyle dependency.
+- **Username input placeholder text clipping.** The placeholder text on the username step input is rendering clipped on top and bottom (line-height / font-rendering issue). Cosmetic, not functional.
+- **Centralize profile field → display mapping.** Logic that turns raw `out_status` into "Out" / "Sort-of out" / "Not out" pill labels lives in `current-user-context.tsx` mixed with other tag construction. Extract to a dedicated `lib/profile-display.ts` helper when a second consumer materializes.
+- **`validate_username(text)` SQL function extraction.** `complete_onboarding` currently inlines the length / format / reserved validation. When a username-change RPC is added (e.g., for a future settings-rename flow), extract the validation block into `public.validate_username(uname text)` and call from both.
+- **dev-seed `clearEverything` doesn't reset server-side profile fields.** Currently only clears local mocks (friends, gallery, etc.). Post-Phase-1, profile data lives in Supabase but `clearEverything` doesn't touch it. Add Supabase updates to null out `profiles_public.bio`, `profiles_public.intro_seen`, and the seven fields in `profiles_private` when "Reset everything" is invoked. Worth doing whenever the dev-tools get their next pass.
+
+### Future phases (architectural, larger scope)
+- **Lookalike-character flagging for usernames.** Phase 4+ work: contextual warnings when displaying users to people who have visually similar handles in their friends list (e.g., `0`/`O`, `1`/`l`/`I`). Plan §11 explicitly defers this; Phase 1 accepts the residual impersonation risk.
+- **Gallery and prompt-answer cloud sync.** Currently device-local via `lib/gallery-storage` and `lib/prompt-answer-storage`. Multi-device users see different content per device. Migrate images to Supabase Storage and slot metadata to new tables when tackling cross-device sync.
+- **Friends and chat persistence to backend.** No friends / chats tables exist in Supabase yet. All friend cards and chat data are mocked locally. Whole social/communication layer needs dedicated phase planning.
 
 ## 🟡 Blocked on data-layer chapter
 - **Delete-account test pass** — resume after Phase 1 lands (profile data needs to actually load per-user before delete-account can be meaningfully tested).

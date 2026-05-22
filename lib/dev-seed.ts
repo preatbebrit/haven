@@ -8,7 +8,6 @@ import {
 } from '@/constants/mock-friends';
 
 import { block, clearBlocks } from './blocks-storage';
-import { clearBio } from './bio-storage';
 import { getCurrentUserId } from './current-user';
 import { clearReports } from './friend-report-log';
 import { clearRequests, type FriendRequest } from './friend-requests-storage';
@@ -144,5 +143,5 @@ export async function clearAllFriendsData(): Promise<void> {
 
 export async function clearEverything(): Promise<void> {
   await clearAllFriendsData();
-  await Promise.all([clearBio(), clearGallery()]);
+  await clearGallery();
 }
