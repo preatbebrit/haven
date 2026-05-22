@@ -178,29 +178,59 @@ export default function WelcomeScreen() {
   const overlayOpacity = useRef(new Animated.Value(0)).current;
   const animatingRef = useRef(false);
 
-  // Boot router: signed-out users see the welcome screen. Signed-in users
-  // without a completed profile go to onboarding; with a profile they land in
-  // tabs (or /chat if there's an active one).
+  // Four-state boot gate per §6.3 of the Phase 1 plan. The substantive change
+  // vs. the prior version is that profile fetch failures now route to a
+  // dedicated error screen with a Try Again button instead of falling through
+  // to onboarding — see the discriminated ProfileState union in auth-context.
+  //
+  //   signed out                           → welcome (this screen's UI)
+  //   signed in + profileState 'loading'   → BootSpinner
+  //   signed in + profileState 'error'     → BootError (retry button)
+  //   signed in + 'loaded', has username   → /(tabs) or /chat
+  //   signed in + 'loaded', no username    → /onboarding
   const { isHydrated, activeChatId } = useActiveChat();
-  const { loading: authLoading, session, profileUsername } = useAuth();
+  const {
+    loading: authLoading,
+    session,
+    profileState,
+    refreshProfileWithRetry,
+  } = useAuth();
   const [bootResolved, setBootResolved] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+
+  const handleTryAgain = useCallback(async () => {
+    if (retrying) return;
+    setRetrying(true);
+    try {
+      await refreshProfileWithRetry();
+    } finally {
+      setRetrying(false);
+    }
+  }, [refreshProfileWithRetry, retrying]);
 
   useEffect(() => {
-    if (authLoading || !isHydrated || profileUsername === undefined) return;
+    if (authLoading || !isHydrated) return;
+    if (bootResolved) return;
     if (!session) {
       setBootResolved(true);
       return;
     }
-    if (!profileUsername) {
+    // Only route when the profile fetch has settled into 'loaded'. 'loading'
+    // and 'error' render their own UI below without navigating away.
+    if (profileState.kind !== 'loaded') return;
+    if (!profileState.public.username) {
       router.replace('/onboarding');
+      setBootResolved(true);
       return;
     }
     if (activeChatId) {
       router.replace('/chat');
+      setBootResolved(true);
       return;
     }
     router.replace('/(tabs)/chat-selection');
-  }, [authLoading, session, profileUsername, isHydrated, activeChatId, router]);
+    setBootResolved(true);
+  }, [authLoading, isHydrated, bootResolved, session, profileState, activeChatId, router]);
 
   const sheetOffscreen = windowHeight;
 
@@ -230,10 +260,22 @@ export default function WelcomeScreen() {
     });
   }, [overlayOpacity, sheetOffscreen, sheetTranslateY]);
 
+  // Render-time gate. The routing effect above handles the 'loaded' branches
+  // (router.replace). This block covers the in-flight and error cases plus the
+  // signed-out welcome.
   if (!bootResolved) {
-    // Session resolution / profile lookup is in flight. Show a centered spinner
-    // instead of returning null so cold-launches with a stored session don't
-    // flash a white frame before routing to onboarding or tabs.
+    if (session && profileState.kind === 'error') {
+      return (
+        <BootError
+          insets={insets}
+          colors={colors}
+          retrying={retrying}
+          onTryAgain={handleTryAgain}
+        />
+      );
+    }
+    // authLoading, !isHydrated, idle, loading, or transient state right after
+    // 'loaded' (before the routing effect fires) → centered spinner.
     return (
       <View style={[styles.screen, styles.bootLoading, { backgroundColor: colors.backgroundPrimary, paddingTop: insets.top }]}>
         <ActivityIndicator size="large" color={colors.textPrimary} />
@@ -421,6 +463,63 @@ export default function WelcomeScreen() {
   );
 }
 
+// Boot-gate error screen. Visible only when signed in + profileState 'error'
+// — i.e., the profile fetch failed and the AppState retry effect hasn't
+// recovered. Brand-matched (Manrope, BootError uses the same screen
+// background + button-primary as the rest of the boot path).
+function BootError({
+  insets,
+  colors,
+  retrying,
+  onTryAgain,
+}: {
+  insets: ReturnType<typeof useSafeAreaInsets>;
+  colors: ReturnType<typeof useTheme>['colors'];
+  retrying: boolean;
+  onTryAgain: () => void;
+}) {
+  return (
+    <View
+      style={[
+        styles.screen,
+        styles.bootErrorScreen,
+        {
+          backgroundColor: colors.backgroundPrimary,
+          paddingTop: insets.top + Spacing.lg,
+          paddingBottom: Math.max(insets.bottom, Spacing.lg),
+        },
+      ]}
+    >
+      <View style={styles.bootErrorBody}>
+        <Text style={[styles.bootErrorTitle, { color: colors.textPrimary }]}>
+          Something went wrong loading your profile
+        </Text>
+        <Text style={[styles.bootErrorSubtitle, { color: colors.textPrimary }]}>
+          Check your connection and try again.
+        </Text>
+      </View>
+      <PressableScale
+        style={[
+          styles.bootErrorButton,
+          { backgroundColor: colors.buttonPrimary, opacity: retrying ? 0.6 : 1 },
+        ]}
+        onPress={retrying ? undefined : onTryAgain}
+        accessibilityRole="button"
+        accessibilityLabel="Try again"
+        accessibilityState={{ disabled: retrying }}
+      >
+        {retrying ? (
+          <ActivityIndicator size="small" color={colors.textPrimaryInverted} />
+        ) : (
+          <Text style={[styles.bootErrorButtonLabel, { color: colors.textPrimaryInverted }]}>
+            Try Again
+          </Text>
+        )}
+      </PressableScale>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
@@ -429,6 +528,42 @@ const styles = StyleSheet.create({
   bootLoading: {
     alignItems: 'center',
     justifyContent: 'center',
+  },
+
+  // ── Boot error screen ────────────────────────────────────────────────────
+  bootErrorScreen: {
+    paddingHorizontal: Spacing.md,
+    justifyContent: 'space-between',
+  },
+  bootErrorBody: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.sm,
+    gap: Spacing.md,
+  },
+  bootErrorTitle: {
+    fontFamily: FontFamily.semiBold,
+    fontSize: 28,
+    lineHeight: 32,
+    letterSpacing: -1.12,
+  },
+  bootErrorSubtitle: {
+    fontFamily: FontFamily.regular,
+    fontSize: 16,
+    lineHeight: 22,
+  },
+  bootErrorButton: {
+    backgroundColor: Colors.black,
+    borderRadius: Radius.lg,
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bootErrorButtonLabel: {
+    fontFamily: FontFamily.semiBold,
+    fontSize: 16,
+    lineHeight: 20,
+    color: Colors.white,
   },
 
   // ── Logo ──────────────────────────────────────────────────────────────────

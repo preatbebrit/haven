@@ -9,23 +9,77 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { AppState, type AppStateStatus } from 'react-native';
 
 import { setCurrentUserId } from '@/lib/current-user';
 import { consumePendingWipe } from '@/lib/local-data-reset';
+import { runProfileSchemaMigrations } from '@/lib/profile-sync';
 import { SUPABASE_CONFIGURED, supabase } from '@/lib/supabase';
+
+// Row shapes mirror the Phase 1 Supabase tables. Keep these in sync with
+// supabase/migrations/20260521120000_profile_phase1.sql.
+export type ProfilePublic = {
+  id: string;
+  username: string | null;
+  bio: string | null;
+  intro_seen: boolean;
+  updated_at: string;
+};
+
+export type ProfilePrivate = {
+  id: string;
+  date_of_birth: string | null;
+  gender_id: string | null;
+  pronoun_preset: string | null;
+  pronouns_custom: string | null;
+  out_status: 'yes' | 'no' | 'sort-of' | null;
+  accepting_environment: string | null;
+  identity_tags: string[];
+  updated_at: string;
+};
+
+// Discriminated union per §6.1 of the Phase 1 plan. The critical fix vs. the
+// prior `profileUsername: string | null | undefined` shape is the `error`
+// branch — a network blip on cold launch no longer silently routes existing
+// users to onboarding (the boot gate reads `profileState` directly).
+export type ProfileState =
+  | { kind: 'idle' }
+  | { kind: 'loading' }
+  | { kind: 'loaded'; public: ProfilePublic; private: ProfilePrivate }
+  | { kind: 'error'; error: Error };
 
 type AuthContextValue = {
   session: Session | null;
   user: User | null;
   /** True until the initial getSession() resolves. */
   loading: boolean;
+  /** Source of truth for the loaded profile. New code should read this. */
+  profileState: ProfileState;
   /**
-   * undefined = haven't queried yet, null = no profile row / no username set,
-   * string = profile complete enough to enter the app.
+   * Single-attempt fetch — refreshes profileState. Use for ad-hoc refreshes
+   * (e.g. after a settings write).
+   */
+  refreshProfile: () => Promise<void>;
+  /**
+   * 3-attempt fetch with 500/1000/2000 ms backoff. Use after a write whose
+   * success the user needs to feel — most notably onboarding completion —
+   * where a transient post-RPC refresh failure shouldn't bounce the user to
+   * the error screen. See §6.5 of the Phase 1 plan.
+   */
+  refreshProfileWithRetry: () => Promise<ProfileState>;
+  /**
+   * @deprecated Read `profileState` instead. Kept for backward compatibility
+   * with app/auth/email.tsx (uncommitted pre-existing work in the tree) and
+   * any straggler call site that still expects the old sentinel pattern:
+   *   undefined = not queried, null = no profile / signed out / error,
+   *   string   = loaded with username.
+   *
+   * The error → null mapping preserves the legacy bug where a fetch failure
+   * read as "needs onboarding". The new boot gate in app/index.tsx uses
+   * `profileState` to avoid that misrouting; this derived field exists only
+   * so legacy consumers keep behaving exactly as they did before chunk 2.
    */
   profileUsername: string | null | undefined;
-  /** Re-read profiles.username for the current user. Call after onboarding completes. */
-  refreshProfile: () => Promise<void>;
   signOut: () => Promise<void>;
 };
 
@@ -34,40 +88,126 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  const [profileUsername, setProfileUsername] = useState<string | null | undefined>(undefined);
+  const [profileState, setProfileState] = useState<ProfileState>({ kind: 'idle' });
   const mountedRef = useRef(true);
+  // Guards against re-running migrations on every AppState 'active' or
+  // auth-event tick. Idempotent against the @haven/profile_schema_version key
+  // anyway, but the ref keeps the AsyncStorage read out of the hot path.
+  const migrationsRanRef = useRef(false);
+  // Tracks the most recent user we kicked a fetch for. Lets the parallel
+  // fetch and AppState recovery effect both check session.user.id without
+  // re-running effects on identical IDs.
+  const lastFetchedUserIdRef = useRef<string | null>(null);
 
-  const loadProfile = useCallback(async (userId: string) => {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('username')
-      .eq('id', userId)
-      .maybeSingle();
-    if (!mountedRef.current) return;
-    if (error) {
-      console.warn('[auth] profile lookup failed', error.code, error.message);
-      setProfileUsername(null);
-      return;
+  // Parallel fetch of both rows. profiles_public is universally readable
+  // by authenticated users; profiles_private is owner-only — for own-user
+  // reads, RLS allows it. See §6.2 of the Phase 1 plan.
+  const loadProfile = useCallback(async (userId: string): Promise<ProfileState> => {
+    try {
+      const [pubResult, privResult] = await Promise.all([
+        supabase.from('profiles_public').select('*').eq('id', userId).maybeSingle(),
+        supabase.from('profiles_private').select('*').eq('id', userId).maybeSingle(),
+      ]);
+
+      if (pubResult.error) {
+        return {
+          kind: 'error',
+          error: new Error(
+            `profiles_public fetch failed: ${pubResult.error.message} (code=${pubResult.error.code ?? 'unknown'})`,
+          ),
+        };
+      }
+      if (privResult.error) {
+        return {
+          kind: 'error',
+          error: new Error(
+            `profiles_private fetch failed: ${privResult.error.message} (code=${privResult.error.code ?? 'unknown'})`,
+          ),
+        };
+      }
+      if (!pubResult.data || !privResult.data) {
+        // Either row missing — most likely a handle_new_user trigger race or
+        // corruption. Treat as error (recoverable via retry) rather than
+        // "needs onboarding", per the user-enumeration discussion in the plan.
+        return { kind: 'error', error: new Error('profile_row_missing') };
+      }
+      return {
+        kind: 'loaded',
+        public: pubResult.data as ProfilePublic,
+        private: privResult.data as ProfilePrivate,
+      };
+    } catch (e) {
+      const err = e instanceof Error ? e : new Error(String(e));
+      return { kind: 'error', error: err };
     }
-    setProfileUsername(data?.username ?? null);
   }, []);
+
+  // Fetch-and-commit for a specific userId. Sets loading on entry and writes
+  // the final state on exit (only if still mounted). Safe to call multiple
+  // times — later writes win.
+  const refreshProfileForUser = useCallback(
+    async (userId: string): Promise<ProfileState> => {
+      if (!mountedRef.current) return { kind: 'idle' };
+      setProfileState({ kind: 'loading' });
+      lastFetchedUserIdRef.current = userId;
+      const next = await loadProfile(userId);
+      if (!mountedRef.current) return next;
+      // Only write if we're still the most-recent fetch and the user hasn't
+      // signed out since this call started.
+      if (lastFetchedUserIdRef.current === userId) {
+        setProfileState(next);
+      }
+      return next;
+    },
+    [loadProfile],
+  );
+
+  const refreshProfile = useCallback(async (): Promise<void> => {
+    if (!session) return;
+    await refreshProfileForUser(session.user.id);
+  }, [session, refreshProfileForUser]);
+
+  // 3-attempt retry with 500/1000/2000ms backoff (per §6.5 of the plan).
+  // Returns the final ProfileState rather than throwing so callers can
+  // branch on the result — e.g. onboarding's finish() decides whether to
+  // navigate to tabs or to the boot-gate error screen based on this.
+  const refreshProfileWithRetry = useCallback(async (): Promise<ProfileState> => {
+    if (!session) return { kind: 'idle' };
+    const userId = session.user.id;
+    const delays = [500, 1000, 2000];
+    if (mountedRef.current) setProfileState({ kind: 'loading' });
+    lastFetchedUserIdRef.current = userId;
+
+    let last: ProfileState = { kind: 'loading' };
+    for (let i = 0; i < 3; i += 1) {
+      last = await loadProfile(userId);
+      if (last.kind === 'loaded') break;
+      // No delay after the final attempt.
+      if (i < 2) {
+        await new Promise<void>((resolve) => setTimeout(resolve, delays[i]));
+      }
+    }
+
+    if (mountedRef.current && lastFetchedUserIdRef.current === userId) {
+      setProfileState(last);
+    }
+    return last;
+  }, [session, loadProfile]);
 
   const applySession = useCallback(
     (next: Session | null) => {
       setSession(next);
       setCurrentUserId(next?.user.id ?? null);
       if (next) {
-        // Reset to the "haven't queried yet" sentinel so the boot gate in
-        // app/index.tsx waits for loadProfile instead of routing on stale data.
-        // Without this, a stale `null` from a prior sign-out makes the gate
-        // briefly route to /onboarding before the profile lookup resolves.
-        setProfileUsername(undefined);
-        void loadProfile(next.user.id);
+        // Reset to loading so the boot gate waits for the fresh fetch instead
+        // of routing on stale data left over from a prior session.
+        void refreshProfileForUser(next.user.id);
       } else {
-        setProfileUsername(null);
+        lastFetchedUserIdRef.current = null;
+        setProfileState({ kind: 'idle' });
       }
     },
-    [loadProfile],
+    [refreshProfileForUser],
   );
 
   useEffect(() => {
@@ -75,40 +215,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (!SUPABASE_CONFIGURED) {
       setLoading(false);
-      setProfileUsername(null);
+      setProfileState({ kind: 'idle' });
       return () => {
         mountedRef.current = false;
       };
     }
 
-    // Crash-recovery: the delete-account flow marks @haven/pending_local_wipe_v1
-    // before its network call. If a crash happened between server delete and
-    // local wipe, the SecureStore session may still hold a token for a deleted
-    // user. Consume the tombstone before subscribing, then signOut to drop that
-    // stale token so INITIAL_SESSION fires with null instead of a ghost session.
     let cancelled = false;
     let unsubscribe: (() => void) | null = null;
 
     (async () => {
+      // Crash-recovery: the delete-account flow marks @haven/pending_local_wipe_v1
+      // before its network call. If a crash happened between server delete and
+      // local wipe, the SecureStore session may still hold a token for a deleted
+      // user. Consume the tombstone before subscribing, then signOut to drop that
+      // stale token so INITIAL_SESSION fires with null instead of a ghost session.
       try {
         const wiped = await consumePendingWipe();
         if (wiped) {
-          // Best-effort; clears SecureStore unconditionally even if the
-          // server call fails. Don't pass scope here — the user is already
-          // server-side gone, no extra revoke needed.
-          try { await supabase.auth.signOut(); } catch { /* non-fatal */ }
+          try {
+            await supabase.auth.signOut();
+          } catch {
+            /* non-fatal */
+          }
         }
       } catch {
         /* non-fatal — boot continues either way */
       }
 
+      // One-shot client-schema migration. Idempotent against the
+      // @haven/profile_schema_version key in AsyncStorage; the ref keeps
+      // the read out of subsequent renders / AppState changes.
+      if (!migrationsRanRef.current) {
+        migrationsRanRef.current = true;
+        await runProfileSchemaMigrations();
+      }
+
       if (cancelled || !mountedRef.current) return;
 
-      // Single source of truth for auth state. INITIAL_SESSION fires once on
-      // subscribe with the rehydrated session (or null) — no need for a separate
-      // getSession() call, which only added a second applySession that raced the
-      // first loadProfile against the JWT being attached to PostgREST headers
-      // (anon role → 42501 permission denied warning on cold launches).
+      // INITIAL_SESSION fires once on subscribe with the rehydrated session
+      // (or null). Single source of truth for auth state.
       const { data: sub } = supabase.auth.onAuthStateChange((event, nextSession) => {
         if (!mountedRef.current) return;
         applySession(nextSession);
@@ -124,25 +270,62 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [applySession]);
 
-  const refreshProfile = useCallback(async () => {
-    if (!session) return;
-    await loadProfile(session.user.id);
-  }, [session, loadProfile]);
+  // AppState recovery: foregrounding while profileState is in 'error' silently
+  // re-attempts the fetch (per §6.2). Single attempt — not the 3-retry helper,
+  // which is reserved for post-onboarding submission where the user is
+  // emotionally invested in a successful transition.
+  useEffect(() => {
+    const onChange = (status: AppStateStatus) => {
+      if (status !== 'active') return;
+      if (!mountedRef.current) return;
+      if (profileState.kind !== 'error') return;
+      if (!session) return;
+      void refreshProfileForUser(session.user.id);
+    };
+    const sub = AppState.addEventListener('change', onChange);
+    return () => sub.remove();
+  }, [profileState.kind, session, refreshProfileForUser]);
 
   const signOut = useCallback(async () => {
     await supabase.auth.signOut();
   }, []);
+
+  // Legacy backward-compat field. Maps the new ProfileState back to the old
+  // tri-valued sentinel. Error → null deliberately preserves the legacy
+  // mis-routing behavior in app/auth/email.tsx, which we're not touching in
+  // this chunk; the new boot gate in app/index.tsx reads profileState directly.
+  const profileUsername = useMemo<string | null | undefined>(() => {
+    switch (profileState.kind) {
+      case 'loading':
+        return undefined;
+      case 'loaded':
+        return profileState.public.username;
+      case 'idle':
+      case 'error':
+        return null;
+    }
+  }, [profileState]);
 
   const value = useMemo<AuthContextValue>(
     () => ({
       session,
       user: session?.user ?? null,
       loading,
-      profileUsername,
+      profileState,
       refreshProfile,
+      refreshProfileWithRetry,
+      profileUsername,
       signOut,
     }),
-    [session, loading, profileUsername, refreshProfile, signOut],
+    [
+      session,
+      loading,
+      profileState,
+      refreshProfile,
+      refreshProfileWithRetry,
+      profileUsername,
+      signOut,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

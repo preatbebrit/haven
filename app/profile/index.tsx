@@ -184,7 +184,7 @@ export default function ProfileScreen() {
   const [savedAnswers, setSavedAnswers] = useState<
     { groupId: string; answer: string; createdAt: number }[]
   >([]);
-  const { displayProfile, refresh: refreshCurrentUser } = useCurrentUser();
+  const { displayProfile } = useCurrentUser();
 
   // Build prompt cards from the user's actual saved answers (one per chat
   // they've joined and answered). Static identity fields come from the live
@@ -211,16 +211,6 @@ export default function ProfileScreen() {
     displayProfile.pronouns,
     displayProfile.avatarSymbol,
   ]);
-
-  // Re-read onboarding-derived profile on focus so edits via Settings or a
-  // fresh onboarding run show up immediately when the user returns. The
-  // current-user context already refreshes on AppState `active`; this covers
-  // navigation-only updates within the app.
-  useFocusEffect(
-    useCallback(() => {
-      void refreshCurrentUser();
-    }, [refreshCurrentUser]),
-  );
 
   // Re-read saved prompt answers on focus. Sorted newest-first so the most
   // recent answer is the front card in the deck.
