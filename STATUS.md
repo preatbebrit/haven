@@ -1,7 +1,7 @@
 # Haven — Project Status
 
 **Repo:** `github.com/preatbebrit/haven` (branch `main`)
-**Last commit:** `c59ecb7` — Phase 1, chunk 3 (chunk 4 cleanup + this STATUS.md entry uncommitted)
+**Last commit:** `dc37893` — Phase 1, chunk 4 (legacy storage cleanup and STATUS.md update)
 
 ## ✅ Done & committed
 - Supabase auth (signup, profile trigger, RLS, onboarding) — `5e0f3bf`
@@ -14,7 +14,7 @@
 - **Phase 1, chunk 1** (profile schema split, reserved usernames) — `aa9ffef`
 - **Phase 1, chunk 2** (`ProfileState` union, parallel fetch, four-state boot gate) — `b61d7d9`
 - **Phase 1, chunk 3** (`complete_onboarding` RPC, settings write-through, validation UX) — `c59ecb7`
-- **Phase 1, chunk 4** (cleanup: legacy storage modules deleted, dev-seed pruned, this STATUS.md entry) — uncommitted
+- **Phase 1, chunk 4** (cleanup: legacy storage modules deleted, dev-seed pruned, STATUS.md update) — `dc37893`
 
 ## 🔴 Active priority — data-layer architectural chapter (in progress)
 The codebase was originally built single-user-on-device and the data layer was never updated for multi-user use. We've now done the architectural planning: every data type has a deliberate home, the work is sequenced into 6 phases, and Phase 1 is mid-planning.
