@@ -1,7 +1,7 @@
 # Haven — Project Status
 
 **Repo:** `github.com/preatbebrit/haven` (branch `main`)
-**Last commit:** `7cbe879` — Phase 1.1: ISO-normalize date_of_birth at the onboarding RPC boundary
+**Last commit:** `3e63bdf` — Phase 1.1: fix placeholder clipping and first-keystroke bounce on username step
 
 ## ✅ Done & committed
 - Supabase auth (signup, profile trigger, RLS, onboarding) — `5e0f3bf`
@@ -18,6 +18,7 @@
 - **Delete-account verified end-to-end** — `814f2ed` — test pass against post-Phase-1 schema completed; silent-audit-log GRANT bug found and fixed in same commit.
 - **Intro carousel device-wide bug resolved** — fixed by Phase 1 (`b61d7d9`); intro_seen is now per-user in profiles_public.
 - **Phase 1.1 — ISO date normalization** — `7cbe879` — `date_of_birth` now sent to `complete_onboarding` in ISO 8601 (YYYY-MM-DD) via `lib/date-input.ts:mmddyyyyToIso`, removing the implicit Postgres DateStyle dependency.
+- **Phase 1.1 — username step input polish** — `3e63bdf` — fixed placeholder text clipping via explicit lineHeight; eliminated first-keystroke bounce by giving TextInput a fixed height and moving the placeholder to a custom overlay.
 
 ## 🔴 Active priority — data-layer architectural chapter (in progress)
 The codebase was originally built single-user-on-device and the data layer was never updated for multi-user use. We've now done the architectural planning: every data type has a deliberate home, the work is sequenced into 6 phases, and Phase 1 is mid-planning.
@@ -60,7 +61,6 @@ Device-wide, no change: theme mode.
 
 ### Phase 1.1 (small follow-ups, no blocker)
 - **Strict nullability for `me` / `displayProfile` in `current-user-context`.** Currently empty-string placeholders that the boot gate masks. Replace with `CurrentUser | null` and `ProfilePublic | null`, update ~5 consumers (`app/prompt.tsx`, `app/answers.tsx`, `app/chat.tsx`, `components/home/group-card.tsx`) to null-check. New code should prefer the nullable `currentUser` field already exposed.
-- **Username input placeholder text clipping.** The placeholder text on the username step input is rendering clipped on top and bottom (line-height / font-rendering issue). Cosmetic, not functional.
 - **Centralize profile field → display mapping.** Logic that turns raw `out_status` into "Out" / "Sort-of out" / "Not out" pill labels lives in `current-user-context.tsx` mixed with other tag construction. Extract to a dedicated `lib/profile-display.ts` helper when a second consumer materializes.
 - **`validate_username(text)` SQL function extraction.** `complete_onboarding` currently inlines the length / format / reserved validation. When a username-change RPC is added (e.g., for a future settings-rename flow), extract the validation block into `public.validate_username(uname text)` and call from both.
 - **dev-seed `clearEverything` doesn't reset server-side profile fields.** Currently only clears local mocks (friends, gallery, etc.). Post-Phase-1, profile data lives in Supabase but `clearEverything` doesn't touch it. Add Supabase updates to null out `profiles_public.bio`, `profiles_public.intro_seen`, and the seven fields in `profiles_private` when "Reset everything" is invoked. Worth doing whenever the dev-tools get their next pass.
