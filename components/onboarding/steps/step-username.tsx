@@ -153,8 +153,8 @@ export function StepUsername({ isActive }: { isActive: boolean }) {
   // line is a neutral status — not an error — so it doesn't flicker red on
   // every keystroke.
   let hint: { text: string; tone: 'error' | 'neutral' } | null = null;
-  if (validationError !== null) {
-    hint = { text: validationError, tone: isEmpty ? 'neutral' : 'error' };
+  if (validationError !== null && !isEmpty) {
+    hint = { text: validationError, tone: 'error' };
   } else if (showTaken) {
     hint = { text: 'That username is taken. Try another.', tone: 'error' };
   } else if (showChecking) {
@@ -171,17 +171,24 @@ export function StepUsername({ isActive }: { isActive: boolean }) {
       <GlowUnderline variant={hasErrorVariant ? 'error' : 'default'} style={styles.inputWrap}>
         <View style={styles.prefixRow}>
           <Text style={[styles.at, { color: colors.textPrimary }]}>@</Text>
-          <TextInput
-            style={[styles.input, { color: colors.textPrimary }]}
-            value={local}
-            onChangeText={(t) => setLocal(t.replace(/^@+/, ''))}
-            placeholder="Username"
-            placeholderTextColor={colors.gray80}
-            autoCapitalize="none"
-            autoCorrect={false}
-            maxLength={32}
-            accessibilityLabel="Username"
-          />
+          <View style={styles.inputBox}>
+            <TextInput
+              style={[styles.input, { color: colors.textPrimary }]}
+              value={local}
+              onChangeText={(t) => setLocal(t.replace(/^@+/, ''))}
+              autoCapitalize="none"
+              autoCorrect={false}
+              maxLength={32}
+              accessibilityLabel="Username"
+            />
+            {local.length === 0 ? (
+              <View pointerEvents="none" style={styles.placeholderOverlay}>
+                <Text style={[styles.placeholderText, { color: colors.gray80 }]}>
+                  Username
+                </Text>
+              </View>
+            ) : null}
+          </View>
         </View>
       </GlowUnderline>
       {hint ? (
@@ -217,14 +224,29 @@ const styles = StyleSheet.create({
   },
   inputWrap: { marginTop: Spacing.sm },
   prefixRow: { flexDirection: 'row', alignItems: 'center', minHeight: 44 },
-  at: { fontFamily: FontFamily.semiBold, fontSize: 32, letterSpacing: -0.64, color: Colors.black },
+  at: { fontFamily: FontFamily.semiBold, fontSize: 32, lineHeight: 40, letterSpacing: -0.64, color: Colors.black },
+  inputBox: { flex: 1, height: 56, justifyContent: 'center' },
   input: {
-    flex: 1,
+    height: 56,
     fontFamily: FontFamily.semiBold,
     fontSize: 32,
     letterSpacing: -0.64,
     color: Colors.black,
-    paddingVertical: Spacing.sm,
+    paddingVertical: 0,
+    textAlignVertical: 'center',
+  },
+  placeholderOverlay: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    justifyContent: 'center',
+  },
+  placeholderText: {
+    fontFamily: FontFamily.semiBold,
+    fontSize: 32,
+    letterSpacing: -0.64,
   },
   hint: { marginTop: Spacing.sm, fontFamily: FontFamily.medium, fontSize: 16 },
 });
