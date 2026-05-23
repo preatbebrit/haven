@@ -77,6 +77,8 @@ serve(async (req: Request) => {
     ? authHeader.slice(7).trim()
     : '';
 
+  console.log('[delete-account] invoked', { requestId, hasToken: !!token });
+
   if (!token) {
     return jsonResponse({ error: 'missing_token', request_id: requestId }, 401);
   }
@@ -134,13 +136,20 @@ serve(async (req: Request) => {
 
   // Write the initial audit row up front so we have a record even if every
   // subsequent step throws.
-  await admin.from('account_deletion_log').insert({
+  const initialInsert = await admin.from('account_deletion_log').insert({
     request_id: requestId,
     user_id: userId,
   });
+  console.log('[delete-account] initial audit insert:', JSON.stringify({
+    requestId,
+    userId,
+    error: initialInsert.error,
+    status: initialInsert.status,
+    statusText: initialInsert.statusText,
+  }));
 
   async function finalize() {
-    await admin
+    const updateResult = await admin
       .from('account_deletion_log')
       .update({
         completed_at: new Date().toISOString(),
@@ -151,6 +160,13 @@ serve(async (req: Request) => {
         error_message: errorMessage,
       })
       .eq('request_id', requestId);
+    console.log('[delete-account] finalize audit update:', JSON.stringify({
+      requestId,
+      error: updateResult.error,
+      status: updateResult.status,
+      statusText: updateResult.statusText,
+      count: updateResult.count,
+    }));
   }
 
   // ── Step 1+2: anonymize + delete profile (single RPC, single tx) ────────
