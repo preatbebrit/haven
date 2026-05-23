@@ -1,7 +1,7 @@
 # Haven — Project Status
 
 **Repo:** `github.com/preatbebrit/haven` (branch `main`)
-**Last commit:** `dc37893` — Phase 1, chunk 4 (legacy storage cleanup and STATUS.md update)
+**Last commit:** `814f2ed` — Fix delete-account audit log writes: grant service_role privileges, add diagnostic logging
 
 ## ✅ Done & committed
 - Supabase auth (signup, profile trigger, RLS, onboarding) — `5e0f3bf`
@@ -15,6 +15,8 @@
 - **Phase 1, chunk 2** (`ProfileState` union, parallel fetch, four-state boot gate) — `b61d7d9`
 - **Phase 1, chunk 3** (`complete_onboarding` RPC, settings write-through, validation UX) — `c59ecb7`
 - **Phase 1, chunk 4** (cleanup: legacy storage modules deleted, dev-seed pruned, STATUS.md update) — `dc37893`
+- **Delete-account verified end-to-end** — `814f2ed` — test pass against post-Phase-1 schema completed; silent-audit-log GRANT bug found and fixed in same commit.
+- **Intro carousel device-wide bug resolved** — fixed by Phase 1 (`b61d7d9`); intro_seen is now per-user in profiles_public.
 
 ## 🔴 Active priority — data-layer architectural chapter (in progress)
 The codebase was originally built single-user-on-device and the data layer was never updated for multi-user use. We've now done the architectural planning: every data type has a deliberate home, the work is sequenced into 6 phases, and Phase 1 is mid-planning.
@@ -67,10 +69,6 @@ Device-wide, no change: theme mode.
 - **Lookalike-character flagging for usernames.** Phase 4+ work: contextual warnings when displaying users to people who have visually similar handles in their friends list (e.g., `0`/`O`, `1`/`l`/`I`). Plan §11 explicitly defers this; Phase 1 accepts the residual impersonation risk.
 - **Gallery and prompt-answer cloud sync.** Currently device-local via `lib/gallery-storage` and `lib/prompt-answer-storage`. Multi-device users see different content per device. Migrate images to Supabase Storage and slot metadata to new tables when tackling cross-device sync.
 - **Friends and chat persistence to backend.** No friends / chats tables exist in Supabase yet. All friend cards and chat data are mocked locally. Whole social/communication layer needs dedicated phase planning.
-
-## 🟡 Blocked on data-layer chapter
-- **Delete-account test pass** — resume after Phase 1 lands (profile data needs to actually load per-user before delete-account can be meaningfully tested).
-- **Intro carousel device-wide bug** — rolled into Phase 1 (intro_seen becomes a server column).
 
 ## 🟡 Queued separately
 - Pending-toast not draining from settings sub-screens.
