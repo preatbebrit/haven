@@ -38,6 +38,7 @@ import {
 } from '@/contexts/step-flow-context';
 import { Colors, FontFamily, FontSize, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { mmddyyyyToIso } from '@/lib/date-input';
 import { supabase } from '@/lib/supabase';
 
 const TOTAL_STEPS = 7;
@@ -166,12 +167,20 @@ export default function OnboardingScreen() {
       await lock.clearLockPin();
     }
 
+    // Normalize date_of_birth to ISO 8601 at the RPC boundary so Postgres date
+    // parsing is independent of the server's DateStyle setting.
+    const isoDateOfBirth = mmddyyyyToIso(onboarding.dateOfBirth);
+    if (!isoDateOfBirth) {
+      Alert.alert('Invalid date of birth. Go back and re-enter it.');
+      return;
+    }
+
     // Single-jsonb payload matching the complete_onboarding RPC. Field names
     // mirror the column names in profiles_public/profiles_private exactly —
     // the RPC uses payload->>'<column>' to extract each value.
     const payload = {
       username: onboarding.username,
-      date_of_birth: onboarding.dateOfBirth,
+      date_of_birth: isoDateOfBirth,
       gender_id: onboarding.genderId,
       pronoun_preset: onboarding.pronounPreset,
       pronouns_custom: onboarding.pronounsCustom,
