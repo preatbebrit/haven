@@ -43,6 +43,17 @@ import { supabase } from '@/lib/supabase';
 
 const TOTAL_STEPS = 7;
 
+const STEP_NAMES = [
+  null,        // index 0 — unused
+  'username',  // 1
+  'age',       // 2
+  'lock',      // 3
+  'gender',    // 4
+  'pronouns',  // 5
+  'out_status', // 6
+  'identities', // 7
+] as const;
+
 // Spec: 280 ms cross-fade/slide. Outgoing body translates 32 px, incoming enters
 // from the full content-width. Easing.out(cubic) on both.
 const TRANSITION_MS = 280;
@@ -76,6 +87,7 @@ export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const onboarding = useOnboarding();
+  const { saveDraft, setCurrentStep } = onboarding;
   const { session, refreshProfileWithRetry } = useAuth();
   const lock = useLock();
 
@@ -137,23 +149,108 @@ export default function OnboardingScreen() {
     runTransition(bodyWidth);
   }, [prevStep, bodyWidth, runTransition]);
 
+  // Ref latch: setCurrentStep's identity changes after every profile update
+  // (its useCallback closes over profileState), so without this guard the
+  // effect would re-fire after every advance and stomp the step back to
+  // 'username'. Mirrors the hydratedRef pattern in onboarding-context.
+  const initialStepWrittenRef = useRef(false);
+  useEffect(() => {
+    // Initialize server-side step pointer on first mount of this screen.
+    // If the user already has a step persisted (resume case in chunk 3),
+    // this will be overwritten by the resume logic. Today it just records
+    // "user is on step 1" for new sign-ups.
+    if (initialStepWrittenRef.current) return;
+    initialStepWrittenRef.current = true;
+    setCurrentStep('username');
+  }, [setCurrentStep]);
+
+  // Save the draft fields associated with the step the user just exited.
+  // Step → fields mapping mirrors how steps are renderered in renderStep.
+  const saveStepDraft = useCallback((leavingStep: number) => {
+    switch (leavingStep) {
+      case 1: // username
+        if (onboarding.username) saveDraft({ username: onboarding.username });
+        return;
+      case 2: { // age
+        const iso = mmddyyyyToIso(onboarding.dateOfBirth);
+        if (iso) saveDraft({ date_of_birth: iso });
+        return;
+      }
+      case 3: // lock — saved inline by step-lock.tsx itself
+        return;
+      case 4: // gender
+        if (onboarding.genderId) saveDraft({ gender_id: onboarding.genderId });
+        return;
+      case 5: // pronouns
+        if (onboarding.pronounPreset) {
+          saveDraft({
+            pronoun_preset: onboarding.pronounPreset,
+            pronouns_custom: onboarding.pronounsCustom || null,
+          });
+        }
+        return;
+      case 6: // out_status
+        if (onboarding.outStatus && onboarding.acceptingEnvironment) {
+          saveDraft({
+            out_status: onboarding.outStatus,
+            accepting_environment: onboarding.acceptingEnvironment,
+          });
+        }
+        return;
+      case 7: // identities — handled by complete_onboarding, no need to save
+        return;
+    }
+  }, [
+    onboarding.username,
+    onboarding.dateOfBirth,
+    onboarding.genderId,
+    onboarding.pronounPreset,
+    onboarding.pronounsCustom,
+    onboarding.outStatus,
+    onboarding.acceptingEnvironment,
+    saveDraft,
+  ]);
+
   const advance = useCallback(() => {
     setStep((s) => {
       if (s >= TOTAL_STEPS) return s;
       directionRef.current = 'forward';
       setPrevStep(s);
-      return s + 1;
+      const nextStep = s + 1;
+      // Update the server-side step pointer so resume routes here on next
+      // launch. Pass the step we're arriving at.
+      if (nextStep <= TOTAL_STEPS) {
+        setCurrentStep(STEP_NAMES[nextStep]);
+      }
+      return nextStep;
     });
-  }, []);
+  }, [setCurrentStep]);
 
   const retreat = useCallback(() => {
     setStep((s) => {
       if (s <= 1) return s;
       directionRef.current = 'backward';
       setPrevStep(s);
-      return s - 1;
+      const nextStep = s - 1;
+      // Don't save on retreat — the user is going back to edit, not
+      // moving forward through new data.
+      setCurrentStep(STEP_NAMES[nextStep]);
+      return nextStep;
     });
-  }, []);
+  }, [setCurrentStep]);
+
+  // Save draft data after state has committed. When `step` increases (the
+  // user advanced), persist the data for the step they left. The effect
+  // runs after render, so all setter calls (setUsername, setDateOfBirth,
+  // etc.) from the step's onPress have committed to context state by the
+  // time we read them.
+  const prevStepForSaveRef = useRef(step);
+  useEffect(() => {
+    if (prevStepForSaveRef.current < step) {
+      saveStepDraft(prevStepForSaveRef.current);
+    }
+    prevStepForSaveRef.current = step;
+  }, [step, saveStepDraft]);
 
   const finish = useCallback(async () => {
     if (!session) return;

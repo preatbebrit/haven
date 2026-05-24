@@ -19,7 +19,7 @@ type Phase = 'entry' | 'success';
 export function StepLock({ isActive }: { isActive: boolean }) {
   const { colors } = useTheme();
   const { setPrimaryButton, setSecondaryButton, setBackHandler, advance } = useStepFlow();
-  const { setLockPin, setLockSkipped } = useOnboarding();
+  const { setLockPin, setLockSkipped, saveDraft } = useOnboarding();
   const [phase, setPhase] = useState<Phase>('entry');
   const [pin, setPin] = useState('');
 
@@ -46,6 +46,7 @@ export function StepLock({ isActive }: { isActive: boolean }) {
         if (!full) return;
         setLockPin(pin);
         setLockSkipped(false);
+        saveDraft({ lockscreen_completed: true });
         setPhase('success');
       },
     });
@@ -54,11 +55,12 @@ export function StepLock({ isActive }: { isActive: boolean }) {
       onPress: () => {
         setLockPin(null);
         setLockSkipped(true);
+        saveDraft({ lockscreen_completed: true });
         advance();
       },
     });
     setBackHandler(null);
-  }, [isActive, phase, full, pin, setLockPin, setLockSkipped, advance, setPrimaryButton, setSecondaryButton, setBackHandler]);
+  }, [isActive, phase, full, pin, setLockPin, setLockSkipped, saveDraft, advance, setPrimaryButton, setSecondaryButton, setBackHandler]);
 
   if (phase === 'success') {
     return (
