@@ -27,7 +27,7 @@ import { StepLock } from '@/components/onboarding/steps/step-lock';
 import { StepOutStatus } from '@/components/onboarding/steps/step-out-status';
 import { StepPronouns } from '@/components/onboarding/steps/step-pronouns';
 import { StepUsername } from '@/components/onboarding/steps/step-username';
-import { useAuth } from '@/contexts/auth-context';
+import { useAuth, type OnboardingStep } from '@/contexts/auth-context';
 import { useLock } from '@/contexts/lock-context';
 import { useOnboarding } from '@/contexts/onboarding-context';
 import {
@@ -53,6 +53,18 @@ const STEP_NAMES = [
   'out_status', // 6
   'identities', // 7
 ] as const;
+
+// Reverse of STEP_NAMES for resume routing — given a persisted onboarding_step,
+// mount the screen at the matching numeric step instead of 1.
+const STEP_NUMBERS: Record<OnboardingStep, number> = {
+  username: 1,
+  age: 2,
+  lock: 3,
+  gender: 4,
+  pronouns: 5,
+  out_status: 6,
+  identities: 7,
+};
 
 // Spec: 280 ms cross-fade/slide. Outgoing body translates 32 px, incoming enters
 // from the full content-width. Easing.out(cubic) on both.
@@ -88,10 +100,20 @@ export default function OnboardingScreen() {
   const { colors } = useTheme();
   const onboarding = useOnboarding();
   const { saveDraft, setCurrentStep } = onboarding;
-  const { session, refreshProfileWithRetry } = useAuth();
+  const { session, profileState, refreshProfileWithRetry } = useAuth();
   const lock = useLock();
 
-  const [step, setStep] = useState(1);
+  // Resume from the server-persisted step if the user has one (chunk 3).
+  // For a brand-new user (no draft yet) profileState may still be 'loading'
+  // here — that's fine, initialStep falls back to 1 and the user starts at
+  // username. The boot gate (app/index.tsx) doesn't route to /onboarding
+  // until profileState is 'loaded' or 'error', so by the time this screen
+  // mounts we'll usually have the step.
+  const initialStep =
+    profileState.kind === 'loaded' && profileState.public.onboarding_step
+      ? STEP_NUMBERS[profileState.public.onboarding_step]
+      : 1;
+  const [step, setStep] = useState(initialStep);
   // Previous step kept mounted during an exit animation, then cleared to null.
   const [prevStep, setPrevStep] = useState<number | null>(null);
   const directionRef = useRef<'forward' | 'backward'>('forward');
@@ -155,14 +177,16 @@ export default function OnboardingScreen() {
   // 'username'. Mirrors the hydratedRef pattern in onboarding-context.
   const initialStepWrittenRef = useRef(false);
   useEffect(() => {
-    // Initialize server-side step pointer on first mount of this screen.
-    // If the user already has a step persisted (resume case in chunk 3),
-    // this will be overwritten by the resume logic. Today it just records
-    // "user is on step 1" for new sign-ups.
     if (initialStepWrittenRef.current) return;
+    if (profileState.kind !== 'loaded') return;
     initialStepWrittenRef.current = true;
-    setCurrentStep('username');
-  }, [setCurrentStep]);
+    // If a step is already persisted (user is resuming), leave it alone —
+    // the initial useState above already picked it up. Otherwise this is a
+    // new user reaching onboarding for the first time; record step 1.
+    if (!profileState.public.onboarding_step) {
+      setCurrentStep('username');
+    }
+  }, [profileState, setCurrentStep]);
 
   // Save the draft fields associated with the step the user just exited.
   // Step → fields mapping mirrors how steps are renderered in renderStep.

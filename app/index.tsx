@@ -183,11 +183,11 @@ export default function WelcomeScreen() {
   // dedicated error screen with a Try Again button instead of falling through
   // to onboarding — see the discriminated ProfileState union in auth-context.
   //
-  //   signed out                           → welcome (this screen's UI)
-  //   signed in + profileState 'loading'   → BootSpinner
-  //   signed in + profileState 'error'     → BootError (retry button)
-  //   signed in + 'loaded', has username   → /(tabs) or /chat
-  //   signed in + 'loaded', no username    → /onboarding
+  //   signed out                              → welcome (this screen's UI)
+  //   signed in + profileState 'loading'      → BootSpinner
+  //   signed in + profileState 'error'        → BootError (retry button)
+  //   signed in + 'loaded', completed         → /(tabs) or /chat
+  //   signed in + 'loaded', not yet completed → /onboarding
   const { isHydrated, activeChatId } = useActiveChat();
   const {
     loading: authLoading,
@@ -218,7 +218,7 @@ export default function WelcomeScreen() {
     // Only route when the profile fetch has settled into 'loaded'. 'loading'
     // and 'error' render their own UI below without navigating away.
     if (profileState.kind !== 'loaded') return;
-    if (!profileState.public.username) {
+    if (!profileState.public.onboarding_completed_at) {
       router.replace('/onboarding');
       setBootResolved(true);
       return;

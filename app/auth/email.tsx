@@ -44,7 +44,7 @@ export default function AuthEmailScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
-  const { session, profileUsername } = useAuth();
+  const { session, profileOnboardingCompleted } = useAuth();
   const { activeChatId } = useActiveChat();
 
   const [mode, setMode] = useState<Mode>('sign-up');
@@ -57,7 +57,7 @@ export default function AuthEmailScreen() {
   const [confirm, setConfirm] = useState('');
   const [submitting, setSubmitting] = useState(false);
   // True from "auth succeeded" until we router.replace away. Keeps the overlay
-  // spinner on screen while AuthProvider finishes loading profileUsername, so
+  // spinner on screen while AuthProvider finishes loading the profile, so
   // the user doesn't see a white flash or a wrong-route flicker.
   const [awaitingRoute, setAwaitingRoute] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -120,8 +120,8 @@ export default function AuthEmailScreen() {
   useEffect(() => {
     if (!awaitingRoute) return;
     if (!session) return;
-    if (profileUsername === undefined) return;
-    if (!profileUsername) {
+    if (profileOnboardingCompleted === undefined) return;
+    if (!profileOnboardingCompleted) {
       router.replace('/onboarding');
       return;
     }
@@ -130,7 +130,7 @@ export default function AuthEmailScreen() {
       return;
     }
     router.replace('/(tabs)/chat-selection');
-  }, [awaitingRoute, session, profileUsername, activeChatId, router]);
+  }, [awaitingRoute, session, profileOnboardingCompleted, activeChatId, router]);
 
   function advanceTo(next: Step) {
     directionRef.current = 'forward';
@@ -185,7 +185,7 @@ export default function AuthEmailScreen() {
         return;
       }
       // Stay on this screen with the overlay spinner; the watch effect will
-      // route once AuthProvider finishes loading profileUsername.
+      // route once AuthProvider finishes loading the profile.
       setAwaitingRoute(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Something went wrong. Try again.');
@@ -227,7 +227,7 @@ export default function AuthEmailScreen() {
         return;
       }
       // Stay on this screen with the overlay spinner; the watch effect will
-      // route once AuthProvider finishes loading profileUsername.
+      // route once AuthProvider finishes loading the profile.
       setAwaitingRoute(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Something went wrong. Try again.');

@@ -10,6 +10,7 @@ import {
 } from 'react';
 
 import { useAuth, type OnboardingDraft, type OnboardingStep } from '@/contexts/auth-context';
+import { isoToMmddyyyy } from '@/lib/date-input';
 import { supabase } from '@/lib/supabase';
 
 export type OutStatus = 'yes' | 'no' | 'sort-of';
@@ -74,7 +75,9 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
 
     const draft = profileState.public.onboarding_draft;
     if (draft.username !== undefined) setUsername(draft.username);
-    if (draft.date_of_birth !== undefined) setDateOfBirth(draft.date_of_birth);
+    if (draft.date_of_birth !== undefined) {
+      setDateOfBirth(isoToMmddyyyy(draft.date_of_birth));
+    }
     if (draft.gender_id !== undefined) setGenderId(draft.gender_id);
     if (draft.pronoun_preset !== undefined) setPronounPreset(draft.pronoun_preset);
     if (draft.pronouns_custom !== undefined && draft.pronouns_custom !== null) {

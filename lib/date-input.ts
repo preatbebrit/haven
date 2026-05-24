@@ -74,3 +74,19 @@ export function mmddyyyyToIso(input: string): string | null {
   const dd = String(day).padStart(2, '0');
   return `${year}-${mm}-${dd}`;
 }
+
+/**
+ * Convert an ISO 8601 date (YYYY-MM-DD) to MM/DD/YYYY for display.
+ * Returns empty string if input is empty or unparseable.
+ *
+ * This is the inverse of mmddyyyyToIso. Used when hydrating the
+ * onboarding context from the server-side draft, which stores dates
+ * in ISO format.
+ */
+export function isoToMmddyyyy(input: string): string {
+  if (!input) return '';
+  const match = input.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return '';
+  const [, yyyy, mm, dd] = match;
+  return `${mm}/${dd}/${yyyy}`;
+}

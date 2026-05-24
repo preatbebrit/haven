@@ -25,6 +25,16 @@ export function StepUsername({ isActive }: { isActive: boolean }) {
   const { setPrimaryButton, setSecondaryButton, setBackHandler, advance } = useStepFlow();
   const { username, setUsername } = useOnboarding();
   const [local, setLocal] = useState(username.replace(/^@/, ''));
+
+  // One-way sync: when context becomes populated (e.g., hydrated from
+  // server-side draft on resume) but local state is still empty, seed
+  // local from context. After this initial seed, local owns the value;
+  // context picks it up on advance via saveStepDraft.
+  useEffect(() => {
+    if (local === '' && username !== '') {
+      setLocal(username.replace(/^@/, ''));
+    }
+  }, [username, local]);
   // Initialized to an empty Set so `.has()` is a silent no-op until the
   // reserved_usernames fetch completes. Don't "fix" this by gating submit
   // on the fetch — server-side validation in complete_onboarding catches

@@ -121,6 +121,16 @@ type AuthContextValue = {
    */
   profileUsername: string | null | undefined;
   /**
+   * Tri-valued onboarding completion sentinel. Mirrors profileUsername's
+   * semantics but for the explicit onboarding_completed_at column.
+   *   undefined = loading/unresolved
+   *   false     = loaded but not yet completed (route to /onboarding)
+   *   true      = loaded and completed (route to main app)
+   *
+   * Authoritative source for routing decisions in the auth flow.
+   */
+  profileOnboardingCompleted: boolean | undefined;
+  /**
    * Write-through helper. Merges a patch into the loaded profiles_public row.
    * No-op when profileState isn't 'loaded' — callers are settings screens
    * gated behind the boot gate, so the loaded branch is the expected case.
@@ -374,6 +384,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [profileState]);
 
+  // Tri-valued onboarding completion sentinel. Mirrors profileUsername's
+  // semantics but for the explicit onboarding_completed_at column. The boot
+  // gate (app/index.tsx) and post-auth routing (app/auth/email.tsx) both
+  // read this instead of profileUsername — closes the bypass where a user
+  // with a username but onboarding_completed_at = null could reach tabs by
+  // back-navigating out of /onboarding.
+  const profileOnboardingCompleted = useMemo<boolean | undefined>(() => {
+    switch (profileState.kind) {
+      case 'loading':
+      case 'idle':
+      case 'error':
+        return undefined;
+      case 'loaded':
+        return !!profileState.public.onboarding_completed_at;
+    }
+  }, [profileState]);
+
   const value = useMemo<AuthContextValue>(
     () => ({
       session,
@@ -383,6 +410,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       refreshProfile,
       refreshProfileWithRetry,
       profileUsername,
+      profileOnboardingCompleted,
       updateProfilePublic,
       updateProfilePrivate,
       signOut,
@@ -394,6 +422,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       refreshProfile,
       refreshProfileWithRetry,
       profileUsername,
+      profileOnboardingCompleted,
       updateProfilePublic,
       updateProfilePrivate,
       signOut,

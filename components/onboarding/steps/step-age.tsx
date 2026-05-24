@@ -15,6 +15,16 @@ export function StepAge({ isActive }: { isActive: boolean }) {
   const [value, setValue] = useState(dateOfBirth);
   const [touched, setTouched] = useState(false);
 
+  // One-way sync: when context becomes populated (e.g., hydrated from
+  // server-side draft on resume) but local state is still empty, seed
+  // local from context. After this initial seed, local owns the value;
+  // context picks it up on advance via saveStepDraft.
+  useEffect(() => {
+    if (value === '' && dateOfBirth !== '') {
+      setValue(dateOfBirth);
+    }
+  }, [dateOfBirth, value]);
+
   const complete = value.length === 10;
   const parsed = complete ? parseUSDate(value) : null;
   const validDate = parsed !== null;
