@@ -18,12 +18,52 @@ import { SUPABASE_CONFIGURED, supabase } from '@/lib/supabase';
 
 // Row shapes mirror the Phase 1 Supabase tables. Keep these in sync with
 // supabase/migrations/20260521120000_profile_phase1.sql.
+
+/**
+ * A step name in the resumable onboarding flow. Mirrors the
+ * profiles_public.onboarding_step CHECK constraint server-side.
+ * Null when the user is not in onboarding (either never started or
+ * completed).
+ */
+export type OnboardingStep =
+  | 'username'
+  | 'age'
+  | 'lock'
+  | 'gender'
+  | 'pronouns'
+  | 'out_status'
+  | 'identities';
+
+/**
+ * Server-side draft of in-progress onboarding values. Mirrors the
+ * profiles_public.onboarding_draft jsonb column. All keys optional —
+ * a key is present only after the user has typed/selected that value.
+ *
+ * The lock PIN itself stays in local SecureStore (lib/lock-storage);
+ * the draft only tracks whether the user reached the end of the
+ * lockscreen step via lockscreen_completed.
+ */
+export type OnboardingDraft = {
+  username?: string;
+  date_of_birth?: string;            // ISO YYYY-MM-DD
+  lockscreen_completed?: boolean;
+  gender_id?: string;
+  pronoun_preset?: string;
+  pronouns_custom?: string | null;
+  out_status?: 'yes' | 'no' | 'sort-of';
+  accepting_environment?: string;
+  identity_tags?: string[];
+};
+
 export type ProfilePublic = {
   id: string;
   username: string | null;
   bio: string | null;
   intro_seen: boolean;
   updated_at: string;
+  onboarding_completed_at: string | null;
+  onboarding_step: OnboardingStep | null;
+  onboarding_draft: OnboardingDraft;
 };
 
 export type ProfilePrivate = {
@@ -317,10 +357,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  // Legacy backward-compat field. Maps the new ProfileState back to the old
-  // tri-valued sentinel. Error → null deliberately preserves the legacy
-  // mis-routing behavior in app/auth/email.tsx, which we're not touching in
-  // this chunk; the new boot gate in app/index.tsx reads profileState directly.
+  // Legacy backward-compat field. 'undefined' = "loading or unresolved",
+  // 'null' = "explicitly absent (i.e., loaded but no username)", string = "have it".
+  // Both 'idle' and 'error' return undefined so callers wait rather than
+  // misroute to onboarding on transient states. The new boot gate in
+  // app/index.tsx reads profileState directly and doesn't depend on this.
   const profileUsername = useMemo<string | null | undefined>(() => {
     switch (profileState.kind) {
       case 'loading':
@@ -329,7 +370,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return profileState.public.username;
       case 'idle':
       case 'error':
-        return null;
+        return undefined;
     }
   }, [profileState]);
 
