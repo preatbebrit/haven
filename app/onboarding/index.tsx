@@ -355,18 +355,47 @@ export default function OnboardingScreen() {
     }
   }, [router, onboarding, lock, session, refreshProfileWithRetry]);
 
+  // Escape hatch: user wants out of onboarding without finishing. Sign-out
+  // invalidates the local session; AuthProvider's session=null cascade then
+  // unloads profileState. Scope 'local' only — we don't revoke other devices'
+  // tokens here.
+  //
+  // We then explicitly route to '/'. The boot gate lives in app/index.tsx
+  // and isn't mounted while the user is on /onboarding (router.replace
+  // unmounted it on the way in), so it can't react to the session change on
+  // its own. Replacing to '/' remounts the boot gate with a fresh
+  // bootResolved=false — it sees no session and renders the welcome UI.
+  // On a failed sign-out the navigation still fires; the boot gate sees the
+  // still-valid session and routes right back to /onboarding, so the user
+  // is no worse off than before.
+  const handleSignOut = useCallback(async () => {
+    try {
+      await supabase.auth.signOut({ scope: 'local' });
+    } catch (e) {
+      console.warn('[onboarding] sign-out failed:', e);
+    }
+    router.replace('/');
+  }, [router]);
+
   const handleBack = useCallback(() => {
     if (backOverride) {
       backOverride();
       return;
     }
     if (step === 1) {
-      if (router.canGoBack()) router.back();
-      else router.replace('/');
+      // Back on step 1 used to exit to welcome; that path let users escape
+      // onboarding with partial profile data. The only sanctioned exits from
+      // /onboarding now are (a) completing the flow via complete_onboarding
+      // and (b) tapping the sign-out link rendered below.
+      Alert.alert(
+        'Almost done!',
+        'Finish setting up your profile to continue. If you want to use a different account, tap "Sign out" below.',
+        [{ text: 'OK' }],
+      );
       return;
     }
     retreat();
-  }, [backOverride, step, retreat, router]);
+  }, [backOverride, step, retreat]);
 
   const flowValue = useMemo<StepFlowValue>(
     () => ({
@@ -432,6 +461,17 @@ export default function OnboardingScreen() {
               <Text style={[styles.secondaryText, { color: colors.textPrimary }]}>{secondary.label}</Text>
             </Pressable>
           ) : null}
+          <Pressable
+            onPress={handleSignOut}
+            style={styles.signOutLink}
+            accessibilityRole="button"
+            accessibilityLabel="Sign out"
+            hitSlop={8}
+          >
+            <Text style={[styles.signOutText, { color: colors.textPrimary }]}>
+              Sign out
+            </Text>
+          </Pressable>
         </View>
       </KeyboardAvoidingView>
     </StepFlowContext.Provider>
@@ -458,4 +498,14 @@ const styles = StyleSheet.create({
   },
   secondary: { alignItems: 'center', paddingVertical: Spacing.sm },
   secondaryText: { fontFamily: FontFamily.semiBold, fontSize: FontSize.md, color: Colors.black },
+  signOutLink: {
+    alignSelf: 'center',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+  },
+  signOutText: {
+    fontFamily: FontFamily.semiBold,
+    fontSize: 14,
+    textDecorationLine: 'underline',
+  },
 });

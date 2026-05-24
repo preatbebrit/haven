@@ -10,6 +10,7 @@ export default function OnboardingLayout() {
       <Stack
         screenOptions={{
           headerShown: false,
+          gestureEnabled: false,
           contentStyle: { backgroundColor: colors.backgroundPrimary },
         }}
       >
