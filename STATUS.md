@@ -1,7 +1,7 @@
 # Haven — Project Status
 
 **Repo:** `github.com/preatbebrit/haven` (branch `main`)
-**Last commit:** `3e63bdf` — Phase 1.1: fix placeholder clipping and first-keystroke bounce on username step
+**Last commit:** `136a0ee` — Onboarding resumability + enforcement, chunk 4: back-trap and sign-out escape
 
 ## ✅ Done & committed
 - Supabase auth (signup, profile trigger, RLS, onboarding) — `5e0f3bf`
@@ -19,6 +19,7 @@
 - **Intro carousel device-wide bug resolved** — fixed by Phase 1 (`b61d7d9`); intro_seen is now per-user in profiles_public.
 - **Phase 1.1 — ISO date normalization** — `7cbe879` — `date_of_birth` now sent to `complete_onboarding` in ISO 8601 (YYYY-MM-DD) via `lib/date-input.ts:mmddyyyyToIso`, removing the implicit Postgres DateStyle dependency.
 - **Phase 1.1 — username step input polish** — `3e63bdf` — fixed placeholder text clipping via explicit lineHeight; eliminated first-keystroke bounce by giving TextInput a fixed height and moving the placeholder to a custom overlay.
+- **Onboarding resumability + enforcement** — `09c4b2b`, `c985719`, `af855be`, `45d8512`, `681d922`, `136a0ee` — `onboarding_completed_at` is the authoritative completion signal, replacing implicit `username IS NOT NULL`. Boot gate routes incomplete users to /onboarding; back-trap on step 1 closes the in-session bypass; sign-out link is the only sanctioned exit. Onboarding screen resumes at the persisted step; draft fields hydrate into the form on re-entry. Lock PIN stays local; all other fields persist server-side.
 
 ## 🔴 Active priority — data-layer architectural chapter (in progress)
 The codebase was originally built single-user-on-device and the data layer was never updated for multi-user use. We've now done the architectural planning: every data type has a deliberate home, the work is sequenced into 6 phases, and Phase 1 is mid-planning.
@@ -64,6 +65,7 @@ Device-wide, no change: theme mode.
 - **Centralize profile field → display mapping.** Logic that turns raw `out_status` into "Out" / "Sort-of out" / "Not out" pill labels lives in `current-user-context.tsx` mixed with other tag construction. Extract to a dedicated `lib/profile-display.ts` helper when a second consumer materializes.
 - **`validate_username(text)` SQL function extraction.** `complete_onboarding` currently inlines the length / format / reserved validation. When a username-change RPC is added (e.g., for a future settings-rename flow), extract the validation block into `public.validate_username(uname text)` and call from both.
 - **dev-seed `clearEverything` doesn't reset server-side profile fields.** Currently only clears local mocks (friends, gallery, etc.). Post-Phase-1, profile data lives in Supabase but `clearEverything` doesn't touch it. Add Supabase updates to null out `profiles_public.bio`, `profiles_public.intro_seen`, and the seven fields in `profiles_private` when "Reset everything" is invoked. Worth doing whenever the dev-tools get their next pass.
+- **Username step probe-skip on retreat.** When the user retreats to step 1 with a persisted username in the draft, the input pre-fills but the Next button is briefly inactive (~400ms) while the availability probe re-runs. The check is redundant — the username was already confirmed available when it was first typed. Skip the probe when `local === username` (i.e., the value came from the saved draft).
 
 ### Future phases (architectural, larger scope)
 - **Lookalike-character flagging for usernames.** Phase 4+ work: contextual warnings when displaying users to people who have visually similar handles in their friends list (e.g., `0`/`O`, `1`/`l`/`I`). Plan §11 explicitly defers this; Phase 1 accepts the residual impersonation risk.
