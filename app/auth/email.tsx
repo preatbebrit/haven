@@ -2,10 +2,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
+  Animated as RNAnimated,
   LayoutChangeEvent,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -27,6 +25,7 @@ import { PressableScale } from '@/components/ui/pressable-scale';
 import { Colors, FontFamily, FontSize, Spacing, TextStyle } from '@/constants/theme';
 import { useActiveChat } from '@/contexts/active-chat-context';
 import { useAuth } from '@/contexts/auth-context';
+import { useStableKeyboardHeight } from '@/hooks/use-stable-keyboard-height';
 import { useTheme } from '@/hooks/use-theme';
 import { SUPABASE_CONFIGURED, supabase } from '@/lib/supabase';
 
@@ -46,6 +45,7 @@ export default function AuthEmailScreen() {
   const { colors } = useTheme();
   const { session, profileOnboardingCompleted } = useAuth();
   const { activeChatId } = useActiveChat();
+  const keyboardHeight = useStableKeyboardHeight();
 
   const [mode, setMode] = useState<Mode>('sign-up');
   const [step, setStep] = useState<Step>('email');
@@ -297,10 +297,7 @@ export default function AuthEmailScreen() {
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
-      <KeyboardAvoidingView
-        style={[styles.screen, { backgroundColor: colors.backgroundPrimary }]}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
+      <View style={[styles.screen, { backgroundColor: colors.backgroundPrimary }]}>
         <View style={[styles.header, { paddingTop: insets.top + Spacing.sm }]}>
           <PressableScale
             style={[styles.back, { backgroundColor: colors.buttonPrimary }]}
@@ -360,15 +357,17 @@ export default function AuthEmailScreen() {
             })}
             {error ? <Text style={styles.error}>{error}</Text> : null}
           </Animated.View>
-
-          {awaitingRoute ? (
-            <View style={styles.loadingOverlay} pointerEvents="auto">
-              <ActivityIndicator size="large" color={colors.textPrimary} />
-            </View>
-          ) : null}
         </View>
 
-        <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, Spacing.md) }]}>
+        <RNAnimated.View
+          style={[
+            styles.footer,
+            {
+              paddingBottom: Math.max(insets.bottom, Spacing.md),
+              marginBottom: keyboardHeight,
+            },
+          ]}
+        >
           <PrimaryNextButton label={primaryLabel} inactive={primaryInactive} onPress={onPrimary} />
           <Pressable
             onPress={toggleMode}
@@ -378,8 +377,8 @@ export default function AuthEmailScreen() {
           >
             <Text style={[styles.toggleLabel, { color: colors.textPrimary }]}>{toggleLabel}</Text>
           </Pressable>
-        </View>
-      </KeyboardAvoidingView>
+        </RNAnimated.View>
+      </View>
     </>
   );
 }
@@ -555,12 +554,6 @@ const styles = StyleSheet.create({
   toggleBtn: {
     alignItems: 'center',
     paddingVertical: Spacing.sm,
-  },
-  loadingOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.65)',
   },
   toggleLabel: {
     ...TextStyle.bodyBold,
