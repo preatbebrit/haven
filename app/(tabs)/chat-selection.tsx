@@ -64,33 +64,36 @@ export default function HomeScreen() {
   return (
     <View style={[styles.screen, { backgroundColor: colors.backgroundPrimary }]}>
       <Toast message={toast} onDismiss={() => setToast(null)} />
-      <AppHeader
-        left={{ kind: 'spacer' }}
-        center={{
-          kind: 'node',
-          node: <HavenLogo color={colors.textPrimary} />,
-        }}
-        right={{
-          kind: 'icon',
-          icon: <ProfileIcon size={24} color={colors.textPrimaryInverted} />,
-          onPress: () => router.push('/profile'),
-          accessibilityLabel:
-            unreadCount > 0
-              ? `Open profile. ${unreadCount} new notification${unreadCount === 1 ? '' : 's'}`
-              : 'Open profile',
-          badge: unreadCount,
-        }}
-      />
       <FlatList
         data={sortedCards}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => <GroupCard group={item} />}
         ItemSeparatorComponent={() => <View style={{ height: Spacing.md }} />}
+        ListHeaderComponent={
+          <AppHeader
+            left={{ kind: 'spacer' }}
+            center={{
+              kind: 'node',
+              node: <HavenLogo color={colors.textPrimary} />,
+            }}
+            right={{
+              kind: 'icon',
+              icon: <ProfileIcon size={24} color={colors.textPrimaryInverted} />,
+              onPress: () => router.push('/profile'),
+              accessibilityLabel:
+                unreadCount > 0
+                  ? `Open profile. ${unreadCount} new notification${unreadCount === 1 ? '' : 's'}`
+                  : 'Open profile',
+              badge: unreadCount,
+            }}
+            style={styles.listHeader}
+          />
+        }
         contentContainerStyle={[
           styles.listContent,
           { paddingBottom: insets.bottom + Spacing.xl },
         ]}
-        contentInsetAdjustmentBehavior="automatic"
+        contentInsetAdjustmentBehavior="never"
         showsVerticalScrollIndicator={false}
       />
     </View>
@@ -104,6 +107,11 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingHorizontal: Spacing.md,
-    paddingTop: Spacing.sm,
+  },
+  // The list's contentContainerStyle applies horizontal padding so the cards
+  // sit inset; the AppHeader carries its own HEADER_HORIZONTAL padding and
+  // expects to extend to the screen edges, so cancel the list's inset here.
+  listHeader: {
+    marginHorizontal: -Spacing.md,
   },
 });
