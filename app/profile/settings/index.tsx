@@ -52,6 +52,7 @@ export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const { mode: themeMode, setMode: setThemeMode, colors } = useTheme();
   const { me, currentUser } = useCurrentUser();
+  if (!me) return null;
   const { signOut } = useAuth();
   const { hasActivePin } = useLock();
   const { state: deleteState, deleteAccount, dismissError } = useDeleteAccount();

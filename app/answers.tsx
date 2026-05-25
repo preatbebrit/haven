@@ -292,6 +292,7 @@ export default function AnswersScreen() {
   const { groupId } = useLocalSearchParams<{ groupId?: string }>();
   const { joinChat, activeChatId } = useActiveChat();
   const { me } = useCurrentUser();
+  if (!me) return null;
 
   // /chat is below /answers when the user arrived via the chat-header prompt
   // icon (chat → /answers as a push). Not in the stack when arriving from the

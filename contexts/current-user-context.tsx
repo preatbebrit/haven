@@ -52,17 +52,16 @@ export type CurrentUser = ProfilePublic & ProfilePrivate;
 
 type CurrentUserContextValue = {
   /**
-   * Chat-shaped current-user view. Populated only when profileState is
-   * 'loaded' — placeholder (empty strings) otherwise. Backward-compat field
-   * for chat / answers / prompt / etc., which were written against the old
-   * always-populated shape. New code should prefer `currentUser` and
-   * `isLoading`.
+   * Chat-shaped current-user view. Null until profileState is 'loaded'. The
+   * boot gate in app/index.tsx prevents the signed-in tree from mounting
+   * before that, so consumers can null-check and early-return — the null
+   * branch is an unreachable defensive path in practice.
    */
-  me: ChatUser;
+  me: ChatUser | null;
   /**
    * Profile-display-shaped view. Same loading semantics as `me`.
    */
-  displayProfile: CurrentUserDisplayProfile;
+  displayProfile: CurrentUserDisplayProfile | null;
   /**
    * Merged public+private row, or null when not loaded. Single source of
    * truth for new code. Both rows share the same `id`; the merge resolves
@@ -82,26 +81,6 @@ type CurrentUserContextValue = {
 };
 
 const CurrentUserContext = createContext<CurrentUserContextValue | null>(null);
-
-// 'me' is intentionally kept as the literal id for now. The chat/friend/
-// storage seeded data is keyed by 'me' and switching to the real auth id is
-// scoped for a later phase (see STATUS.md: "getCurrentUserId() always
-// returning 'me' (relevant when chat ships)").
-const PLACEHOLDER_ME: ChatUser = {
-  id: 'me',
-  handle: '',
-  displayName: '',
-  avatarColor: '#000000',
-  avatarSymbol: PLACEHOLDER_SYMBOL,
-  pronouns: '',
-};
-
-const PLACEHOLDER_DISPLAY_PROFILE: CurrentUserDisplayProfile = {
-  handle: '',
-  pronouns: '',
-  avatarSymbol: PLACEHOLDER_SYMBOL,
-  tags: [],
-};
 
 function buildFromLoaded(
   pub: ProfilePublic,
@@ -157,8 +136,8 @@ export function CurrentUserProvider({ children }: { children: ReactNode }) {
       };
     }
     return {
-      me: PLACEHOLDER_ME,
-      displayProfile: PLACEHOLDER_DISPLAY_PROFILE,
+      me: null,
+      displayProfile: null,
       currentUser: null,
       isLoading: profileState.kind === 'loading',
     };

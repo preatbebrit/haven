@@ -802,6 +802,7 @@ function LikesSheet({ likerIds, onClose }: { likerIds: string[]; onClose: () => 
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const { me } = useCurrentUser();
+  if (!me) return null;
   const translateY = useSharedValue(600);
   const overlayOpacity = useSharedValue(0);
   const onCloseRef = useRef(onClose);
@@ -1081,6 +1082,7 @@ export default function ChatScreen() {
   const { friendsWithUnreadCount: unreadCount } = useNotifications();
   const { currentUserId, bannedIds } = useFriends();
   const { me } = useCurrentUser();
+  if (!me) return null;
   const { setAnim: setTabsReplaceAnim } = useTabsReplaceAnim();
 
   // Flip the (tabs) replace animation to 'pop' as soon as chat mounts so any

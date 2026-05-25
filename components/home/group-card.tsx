@@ -40,6 +40,7 @@ export function GroupCard({ group }: Props) {
   const promptColors = getEffectivePromptColors(group);
   const { bannedIds } = useFriends();
   const { displayProfile } = useCurrentUser();
+  if (!displayProfile) return null;
   const visibleMembers = group.members.filter((m) => !bannedIds.has(m.id));
 
   // Pool = union of identityTags across the chat's members (excluding the

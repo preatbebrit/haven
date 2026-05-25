@@ -186,6 +186,7 @@ export default function ProfileScreen() {
     { groupId: string; answer: string; createdAt: number }[]
   >([]);
   const { displayProfile, currentUser } = useCurrentUser();
+  if (!displayProfile) return null;
   const { session, updateProfilePublic } = useAuth();
   // Profile screen mounts behind the boot gate, so currentUser is the loaded
   // row. Treat null as "" so ProfileInfoBlock's loading branch (which exists

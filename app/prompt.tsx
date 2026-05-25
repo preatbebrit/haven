@@ -67,6 +67,7 @@ export default function PromptScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const { me } = useCurrentUser();
+  if (!me) return null;
   const { joinChat } = useActiveChat();
   const { width: screenW, height: screenH } = useWindowDimensions();
   const [answer, setAnswer] = useState('');
@@ -150,7 +151,7 @@ export default function PromptScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasSource]);
 
-  async function handleShare() {
+  const handleShare = async () => {
     if (!canShare) return;
     // Must await: /answers reads this record on mount, and firing-and-forgetting
     // races with the navigation — the next screen gets the previous session's
@@ -169,7 +170,7 @@ export default function PromptScreen() {
     // lingers on /answers before opening /chat.
     await joinChat(group.id);
     router.replace({ pathname: '/answers', params: { groupId: group.id } });
-  }
+  };
 
   function handleChangeText(t: string) {
     setAnswer(t.slice(0, MAX_CHARS));
