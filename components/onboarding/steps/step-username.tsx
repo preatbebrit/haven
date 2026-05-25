@@ -93,6 +93,17 @@ export function StepUsername({ isActive }: { isActive: boolean }) {
       return;
     }
 
+    // Short-circuit: if the typed value matches the persisted username in
+    // context, this username was already confirmed available the first
+    // time the user typed it. Skip the probe entirely. Happens when:
+    //   - User retreats back to step 1 within a single session
+    //   - User resumes onboarding mid-flow on a different launch
+    //     (hydration seeded context.username from the saved draft)
+    if (trimmed === username && trimmed.length > 0) {
+      setAvailabilityStatus('available');
+      return;
+    }
+
     // Reset to idle synchronously so a stale 'taken' from the previous value
     // doesn't render against the new (not-yet-checked) input during the
     // 400 ms debounce window.
@@ -134,7 +145,7 @@ export function StepUsername({ isActive }: { isActive: boolean }) {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [trimmed, validationError]);
+  }, [trimmed, validationError, username]);
 
   const previewValid = validationError === null;
   // Conservative path: Next is only active once we've confirmed availability.
