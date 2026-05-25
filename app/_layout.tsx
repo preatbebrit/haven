@@ -158,6 +158,16 @@ function RootStack() {
           contentStyle: { backgroundColor: 'transparent' },
         }}
       />
+      <Stack.Screen
+        name="house-rules"
+        options={{
+          headerShown: false,
+          animation: 'none',
+          gestureEnabled: false,
+          presentation: 'transparentModal',
+          contentStyle: { backgroundColor: 'transparent' },
+        }}
+      />
       <Stack.Screen name="photos" options={{ headerShown: false, animation: 'fade', animationDuration: 160 }} />
       <Stack.Screen
         name="share-with"

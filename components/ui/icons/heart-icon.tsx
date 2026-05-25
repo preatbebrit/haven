@@ -1,0 +1,42 @@
+import Svg, { Path } from 'react-native-svg';
+
+import { Colors } from '@/constants/theme';
+
+type Props = {
+  size?: number;
+  width?: number;
+  height?: number;
+  /** Stroke color (also the fill color when `filled` is true). */
+  color?: string;
+  /** Override the fill — useful when filled heart needs a stroke that differs from the fill. */
+  fillColor?: string;
+  /** Render as a solid heart rather than an outline. */
+  filled?: boolean;
+  strokeWidth?: number;
+};
+
+// Heart from Figma "Like" component (node 88:3688). Natural size 18.33 × 18.28
+// — stroke width 2 at natural size keeps the chunky design-system look.
+// Filled variant (node 88:3755) just fills the same path.
+export function HeartIcon({
+  size,
+  width,
+  height,
+  color = Colors.cherry,
+  fillColor,
+  filled = false,
+  strokeWidth = 2,
+}: Props) {
+  const w = width ?? size ?? 18;
+  const h = height ?? size ?? 18;
+  return (
+    <Svg width={w} height={h} viewBox="0 0 18.3322 18.2833" fill="none">
+      <Path
+        d="M12.8597 1C13.833 1.00484 14.8271 1.40991 15.8294 2.18945C17.0606 3.14701 17.4516 4.46798 17.3031 5.83008C17.1613 7.12977 16.5348 8.48827 15.7416 9.75391C14.1456 12.3001 11.6406 14.8325 9.81871 16.4014L9.16636 16.9639L8.51304 16.4014C6.69111 14.8325 4.18602 12.3002 2.59019 9.75391C1.797 8.4883 1.17136 7.12974 1.02964 5.83008C0.881209 4.46798 1.2721 3.147 2.50328 2.18945C3.5056 1.41002 4.49976 1.00482 5.473 1C6.45857 0.995196 7.27815 1.40151 7.91734 1.96582C8.42104 2.41054 8.8332 2.97114 9.16636 3.56445C9.49947 2.97116 9.91176 2.41053 10.4154 1.96582C11.0546 1.4015 11.8741 0.995119 12.8597 1Z"
+        fill={filled ? fillColor ?? color : 'none'}
+        stroke={color}
+        strokeWidth={strokeWidth}
+      />
+    </Svg>
+  );
+}

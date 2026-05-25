@@ -268,6 +268,10 @@ export default function SettingsScreen() {
 
           <SettingsSection title="Resources">
             <SettingsRow
+              label="House Rules"
+              onPress={() => router.push('/house-rules?source=settings')}
+            />
+            <SettingsRow
               label="Resources"
               onPress={() => router.push('/profile/settings/resources')}
             />

@@ -22,8 +22,6 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import Svg, { Path } from 'react-native-svg';
-
 import { getChatState } from '@/lib/chat-state-storage';
 import {
   getChatContentForId,
@@ -39,6 +37,7 @@ import { AutoFitText } from '@/components/ui/auto-fit-text';
 import { GenderAvatar, getAvatarColors } from '@/components/ui/gender-avatar';
 import type { GenderSymbol } from '@/components/ui/gender-avatar';
 import { CloseIcon } from '@/components/ui/icons/close-icon';
+import { HeartIcon } from '@/components/ui/icons/heart-icon';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { ReplyIcon } from '@/components/ui/icons/reply-icon';
 import { SegmentedPagination } from '@/components/ui/segmented-pagination';
@@ -48,31 +47,6 @@ import { addAnswerLike, getAnswerLikes } from '@/lib/answer-likes-storage';
 import { addPendingConnection } from '@/lib/pending-connections';
 import { setPendingReplyTarget } from '@/lib/pending-reply';
 import { getPromptAnswerForGroup } from '@/lib/prompt-answer-storage';
-
-function LikeIcon({ color }: { color: string }) {
-  return (
-    <Svg viewBox="0 0 18.3322 18.2833" width={18} height={18} fill="none">
-      <Path
-        d="M12.8597 1C13.833 1.00484 14.8271 1.40991 15.8294 2.18945C17.0606 3.14701 17.4516 4.46798 17.3031 5.83008C17.1613 7.12977 16.5348 8.48827 15.7416 9.75391C14.1456 12.3001 11.6406 14.8325 9.81871 16.4014L9.16636 16.9639L8.51304 16.4014C6.69111 14.8325 4.18602 12.3002 2.59019 9.75391C1.797 8.4883 1.17136 7.12974 1.02964 5.83008C0.881209 4.46798 1.2721 3.147 2.50328 2.18945C3.5056 1.41002 4.49976 1.00482 5.473 1C6.45857 0.995196 7.27815 1.40151 7.91734 1.96582C8.42104 2.41054 8.8332 2.97114 9.16636 3.56445C9.49947 2.97116 9.91176 2.41053 10.4154 1.96582C11.0546 1.4015 11.8741 0.995119 12.8597 1Z"
-        stroke={color}
-        strokeWidth={2}
-      />
-    </Svg>
-  );
-}
-
-function LikeFilledIcon({ stroke }: { stroke: string }) {
-  return (
-    <Svg viewBox="0 0 18.3322 18.2833" width={18} height={18} fill="none">
-      <Path
-        d="M12.8597 1C13.833 1.00484 14.8271 1.40991 15.8294 2.18945C17.0606 3.14701 17.4516 4.46798 17.3031 5.83008C17.1613 7.12977 16.5348 8.48827 15.7416 9.75391C14.1456 12.3001 11.6406 14.8325 9.81871 16.4014L9.16636 16.9639L8.51304 16.4014C6.69111 14.8325 4.18602 12.3002 2.59019 9.75391C1.797 8.4883 1.17136 7.12974 1.02964 5.83008C0.881209 4.46798 1.2721 3.147 2.50328 2.18945C3.5056 1.41002 4.49976 1.00482 5.473 1C6.45857 0.995196 7.27815 1.40151 7.91734 1.96582C8.42104 2.41054 8.8332 2.97114 9.16636 3.56445C9.49947 2.97116 9.91176 2.41053 10.4154 1.96582C11.0546 1.4015 11.8741 0.995119 12.8597 1Z"
-        fill={Colors.magenta}
-        stroke={stroke}
-        strokeWidth={2}
-      />
-    </Svg>
-  );
-}
 
 const CARD_LEFT_PADDING = 32;
 const CARD_GAP = 16;
@@ -270,8 +244,8 @@ function AnswerCardItem({
         >
           <Animated.View style={heartStyle}>
             {liked
-              ? <LikeFilledIcon stroke={support} />
-              : <LikeIcon color={support} />}
+              ? <HeartIcon size={18} color={support} fillColor={Colors.magenta} filled />
+              : <HeartIcon size={18} color={support} />}
           </Animated.View>
           <Text style={[styles.actionBtnText, { color: support }]}>
             {liked ? 'Liked' : 'Like'}
