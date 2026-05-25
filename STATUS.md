@@ -1,7 +1,7 @@
 # Haven — Project Status
 
 **Repo:** `github.com/preatbebrit/haven` (branch `main`)
-**Last commit:** `46da963` — Pre-launch: sign-out escape hatch on BootError
+**Last commit:** `f611dde` — Design system compliance: sign-out links use TextStyle.bodyBold; visual polish
 
 ## ✅ Done & committed
 - Supabase auth (signup, profile trigger, RLS, onboarding) — `5e0f3bf`
@@ -22,6 +22,7 @@
 - **Onboarding resumability + enforcement** — `09c4b2b`, `c985719`, `af855be`, `45d8512`, `681d922`, `136a0ee` — `onboarding_completed_at` is the authoritative completion signal, replacing implicit `username IS NOT NULL`. Boot gate routes incomplete users to /onboarding; back-trap on step 1 closes the in-session bypass; sign-out link is the only sanctioned exit. Onboarding screen resumes at the persisted step; draft fields hydrate into the form on re-entry. Lock PIN stays local; all other fields persist server-side.
 - **Phase 1.1 — strict nullability for `me` / `displayProfile`** — `fe4743e` — empty-string placeholders removed; both fields now properly typed as nullable. Six consumer files updated with early-return null guards. Net code reduction (-31 / +17).
 - **Pre-launch — BootError sign-out escape hatch** — `46da963` — sign-out link added below Try Again on BootError. Calls `supabase.auth.signOut({ scope: 'local' })`; auth cascade routes to welcome via boot gate. Same UX pattern as onboarding sign-out link.
+- **Design system compliance — sign-out links + visual polish** — `f611dde` — three sign-out/toggle labels switched from ad-hoc fontFamily + fontSize to `TextStyle.bodyBold` preset; sign-out link in onboarding now only renders on step 1; misc spacing / underline tweaks.
 
 ## 🔴 Active priority — data-layer architectural chapter (in progress)
 The codebase was originally built single-user-on-device and the data layer was never updated for multi-user use. We've now done the architectural planning: every data type has a deliberate home, the work is sequenced into 6 phases, and Phase 1 is mid-planning.
