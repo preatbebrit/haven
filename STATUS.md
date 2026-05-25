@@ -1,7 +1,7 @@
 # Haven — Project Status
 
 **Repo:** `github.com/preatbebrit/haven` (branch `main`)
-**Last commit:** `976c2b1` — Pre-launch: stable keyboard height hook + remove loading overlay on email auth
+**Last commit:** `eee282d` — Add House Rules: Haven's manifesto for new users
 
 ## ✅ Done & committed
 - Supabase auth (signup, profile trigger, RLS, onboarding) — `5e0f3bf`
@@ -27,6 +27,7 @@
 - **Fix Rules of Hooks violation in null-guarded components** — `50b35e3` — commit `fe4743e` introduced a hook-order bug by placing early-return null guards after some hooks but before others. Six files affected; all fixed by moving the null guard immediately before the JSX return and making intermediate hooks (useMemo, useEffect) handle the null case internally. Caught when ProfileScreen crashed on sign-out with "Rendered fewer hooks than expected."
 - **Phase 1.1 — centralize out_status display mappings** — `cb1c85c` — extracted out_status display strings to `lib/profile-display.ts` as `OUT_STATUS_TAG_LABELS` (identity-tag form: 'Out' / 'Not out' / 'Sort-of out') and `OUT_STATUS_ANSWER_LABELS` (settings-answer form: 'Yes' / 'No' / 'Sort of'). Both forms preserved as distinct named exports. Five files updated to import from the new location. Also fixed a mock-friends.ts gap where no member had 'Sort-of out' as an identity tag, which masked a latent measurement race in IdentityPillRow when the current user's status was 'sort-of'.
 - **Pre-launch — email auth keyboard + loading polish** — `976c2b1` — replaced iOS KeyboardAvoidingView with the `useStableKeyboardHeight` hook to eliminate jitter from QuickType autocorrect bar frame changes. Footer now lifts smoothly above the keyboard once on open and holds steady. Also removed the full-screen white-translucent loading overlay during sign-in; button-level "Signing in..." text + body pointerEvents disabling already provide adequate loading feedback.
+- **House Rules — Haven manifesto** — `eee282d` — 5-page informational experience introducing new users to Haven's values. Dismissible tile on chat selection (state in `lib/house-rules-storage`); persistent entry in settings for future reference. No acceptance gate. New screen `app/house-rules.tsx` plus 12 supporting components and a shared `HeartIcon` extraction.
 
 ## 🔴 Active priority — data-layer architectural chapter (in progress)
 The codebase was originally built single-user-on-device and the data layer was never updated for multi-user use. We've now done the architectural planning: every data type has a deliberate home, the work is sequenced into 6 phases, and Phase 1 is mid-planning.
