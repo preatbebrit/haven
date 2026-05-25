@@ -1,7 +1,7 @@
 # Haven — Project Status
 
 **Repo:** `github.com/preatbebrit/haven` (branch `main`)
-**Last commit:** `f611dde` — Design system compliance: sign-out links use TextStyle.bodyBold; visual polish
+**Last commit:** `50b35e3` — Fix Rules of Hooks violation in components using me/displayProfile null guards
 
 ## ✅ Done & committed
 - Supabase auth (signup, profile trigger, RLS, onboarding) — `5e0f3bf`
@@ -23,6 +23,8 @@
 - **Phase 1.1 — strict nullability for `me` / `displayProfile`** — `fe4743e` — empty-string placeholders removed; both fields now properly typed as nullable. Six consumer files updated with early-return null guards. Net code reduction (-31 / +17).
 - **Pre-launch — BootError sign-out escape hatch** — `46da963` — sign-out link added below Try Again on BootError. Calls `supabase.auth.signOut({ scope: 'local' })`; auth cascade routes to welcome via boot gate. Same UX pattern as onboarding sign-out link.
 - **Design system compliance — sign-out links + visual polish** — `f611dde` — three sign-out/toggle labels switched from ad-hoc fontFamily + fontSize to `TextStyle.bodyBold` preset; sign-out link in onboarding now only renders on step 1; misc spacing / underline tweaks.
+- **Phase 1.1 — username probe-skip on retreat** — `2f6c4bb` — when the typed value matches the persisted username in context (resume or retreat case), short-circuit the availability probe and set status to 'available' synchronously. Saves the 400ms debounce delay where the Next button was inactive.
+- **Fix Rules of Hooks violation in null-guarded components** — `50b35e3` — commit `fe4743e` introduced a hook-order bug by placing early-return null guards after some hooks but before others. Six files affected; all fixed by moving the null guard immediately before the JSX return and making intermediate hooks (useMemo, useEffect) handle the null case internally. Caught when ProfileScreen crashed on sign-out with "Rendered fewer hooks than expected."
 
 ## 🔴 Active priority — data-layer architectural chapter (in progress)
 The codebase was originally built single-user-on-device and the data layer was never updated for multi-user use. We've now done the architectural planning: every data type has a deliberate home, the work is sequenced into 6 phases, and Phase 1 is mid-planning.
@@ -66,7 +68,6 @@ Device-wide, no change: theme mode.
 - **Centralize profile field → display mapping.** Logic that turns raw `out_status` into "Out" / "Sort-of out" / "Not out" pill labels lives in `current-user-context.tsx` mixed with other tag construction. Extract to a dedicated `lib/profile-display.ts` helper when a second consumer materializes.
 - **`validate_username(text)` SQL function extraction.** `complete_onboarding` currently inlines the length / format / reserved validation. When a username-change RPC is added (e.g., for a future settings-rename flow), extract the validation block into `public.validate_username(uname text)` and call from both.
 - **dev-seed `clearEverything` doesn't reset server-side profile fields.** Currently only clears local mocks (friends, gallery, etc.). Post-Phase-1, profile data lives in Supabase but `clearEverything` doesn't touch it. Add Supabase updates to null out `profiles_public.bio`, `profiles_public.intro_seen`, and the seven fields in `profiles_private` when "Reset everything" is invoked. Worth doing whenever the dev-tools get their next pass.
-- **Username step probe-skip on retreat.** When the user retreats to step 1 with a persisted username in the draft, the input pre-fills but the Next button is briefly inactive (~400ms) while the availability probe re-runs. The check is redundant — the username was already confirmed available when it was first typed. Skip the probe when `local === username` (i.e., the value came from the saved draft).
 
 ### Future phases (architectural, larger scope)
 - **Lookalike-character flagging for usernames.** Phase 4+ work: contextual warnings when displaying users to people who have visually similar handles in their friends list (e.g., `0`/`O`, `1`/`l`/`I`). Plan §11 explicitly defers this; Phase 1 accepts the residual impersonation risk.
