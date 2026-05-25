@@ -29,7 +29,7 @@ const BIO_BY_HANDLE: Record<string, { bio: string; tags: string[] }> = {
   amadabeans:      { bio: "panromantic & professionally distracted.",                  tags: ['Pangender',  'Not out'] },
   // ── co-1 / co-2 cohort ──
   appleseed:       { bio: "she/xe. art teacher with the loud laugh.",                  tags: ['Genderfluid','Out',     'Mixed race'] },
-  funngy:          { bio: "he/her. coming out is a perpetual project, not a speech.",  tags: ['Cis Man',    'Out',     'Latine'] },
+  funngy:          { bio: "he/her. coming out is a perpetual project, not a speech.",  tags: ['Cis Man',    'Sort-of out', 'Latine'] },
   jessyl:          { bio: "she/her. tired of being asked if I'm sure.",                tags: ['Cis Woman',  'Out',     'Neurodivergent'] },
   loversfromany:   { bio: "whatever pronouns. allowed-to-be-messy era.",               tags: ['Nonbinary',  'Not out', 'Black/African Descent'] },
   rainsoft:        { bio: "they/them. mom said 'I love you' and then went quiet.",     tags: ['Nonbinary',  'Out',     'Rural'] },

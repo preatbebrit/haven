@@ -11,8 +11,8 @@ import { Toast } from '@/components/ui/toast';
 import { Colors, FontFamily, FontSize, Spacing } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth-context';
 import { useCurrentUser } from '@/contexts/current-user-context';
-import type { OutStatus } from '@/contexts/onboarding-context';
 import { useTheme } from '@/hooks/use-theme';
+import { type OutStatus } from '@/lib/profile-display';
 import { supabase } from '@/lib/supabase';
 
 const OUT_OPTIONS: { id: OutStatus; label: string }[] = [

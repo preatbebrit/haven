@@ -6,7 +6,8 @@ import { CheckIcon } from '@/components/ui/icons/check-icon';
 import { useStepFlow } from '@/contexts/step-flow-context';
 import { ACCEPTING_ENVIRONMENT_OPTIONS } from '@/constants/onboarding-options';
 import { ACCEPTING_ENVIRONMENT_CONCERNING } from '@/constants/resources';
-import { useOnboarding, type OutStatus } from '@/contexts/onboarding-context';
+import { useOnboarding } from '@/contexts/onboarding-context';
+import { type OutStatus } from '@/lib/profile-display';
 import { Colors, FontFamily, FontSize, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 

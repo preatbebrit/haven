@@ -25,16 +25,10 @@ import { useAuth } from '@/contexts/auth-context';
 import { useCurrentUser } from '@/contexts/current-user-context';
 import { useFriends } from '@/contexts/friends-context';
 import { useLock } from '@/contexts/lock-context';
-import type { OutStatus } from '@/contexts/onboarding-context';
 import { useDeleteAccount } from '@/hooks/use-delete-account';
 import { useTheme } from '@/hooks/use-theme';
+import { OUT_STATUS_ANSWER_LABELS } from '@/lib/profile-display';
 import { type ThemeMode } from '@/lib/theme-mode-storage';
-
-const OUT_STATUS_LABELS: Record<OutStatus, string> = {
-  yes: 'Yes',
-  no: 'No',
-  'sort-of': 'Sort of',
-};
 
 const THEME_OPTIONS: { id: ThemeMode; label: string }[] = [
   { id: 'light', label: 'Light Mode' },
@@ -80,7 +74,7 @@ export default function SettingsScreen() {
     currentUser?.pronoun_preset ||
     PLACEHOLDER_PRONOUNS;
   const outStatusLabel = currentUser?.out_status
-    ? OUT_STATUS_LABELS[currentUser.out_status]
+    ? OUT_STATUS_ANSWER_LABELS[currentUser.out_status]
     : '—';
   const acceptingLabel = currentUser?.accepting_environment ?? '—';
   const lockLabel = hasActivePin ? 'On' : 'Off';

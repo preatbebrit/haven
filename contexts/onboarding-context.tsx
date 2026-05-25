@@ -11,9 +11,8 @@ import {
 
 import { useAuth, type OnboardingDraft, type OnboardingStep } from '@/contexts/auth-context';
 import { isoToMmddyyyy } from '@/lib/date-input';
+import { type OutStatus } from '@/lib/profile-display';
 import { supabase } from '@/lib/supabase';
-
-export type OutStatus = 'yes' | 'no' | 'sort-of';
 
 export type OnboardingContextValue = {
   username: string;

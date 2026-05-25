@@ -8,6 +8,7 @@ import {
   type ProfilePrivate,
   type ProfilePublic,
 } from '@/contexts/auth-context';
+import { OUT_STATUS_TAG_LABELS } from '@/lib/profile-display';
 
 // Onboarding GENDER_OPTIONS ids → GenderSymbol slugs used by the avatar.
 // Ids without an exact symbol map to the closest visual analog. Unchanged
@@ -99,9 +100,7 @@ function buildFromLoaded(
     : undefined;
   const tags: string[] = [];
   if (genderTitle) tags.push(genderTitle);
-  if (priv.out_status === 'yes') tags.push('Out');
-  else if (priv.out_status === 'sort-of') tags.push('Sort-of out');
-  else if (priv.out_status === 'no') tags.push('Not out');
+  if (priv.out_status) tags.push(OUT_STATUS_TAG_LABELS[priv.out_status]);
   tags.push(...priv.identity_tags);
 
   return {
