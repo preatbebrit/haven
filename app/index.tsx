@@ -33,6 +33,7 @@ import { Colors, FontFamily, Radius, Spacing } from '@/constants/theme';
 import { useActiveChat } from '@/contexts/active-chat-context';
 import { useAuth } from '@/contexts/auth-context';
 import { useTheme } from '@/hooks/use-theme';
+import { supabase } from '@/lib/supabase';
 
 // 5-pointed star polygon in a 100×100 viewBox (center 50,50, outer R=45, inner r≈17.2).
 const STAR_POINTS = '50,5 60.1,36.1 92.8,36.1 66.4,55.3 76.5,86.4 50,67.2 23.5,86.4 33.6,55.3 7.2,36.1 39.9,36.1';
@@ -208,6 +209,14 @@ export default function WelcomeScreen() {
     }
   }, [refreshProfileWithRetry, retrying]);
 
+  const handleSignOut = useCallback(async () => {
+    try {
+      await supabase.auth.signOut({ scope: 'local' });
+    } catch (e) {
+      console.warn('[boot-error] sign-out failed:', e);
+    }
+  }, []);
+
   useEffect(() => {
     if (authLoading || !isHydrated) return;
     if (bootResolved) return;
@@ -271,6 +280,7 @@ export default function WelcomeScreen() {
           colors={colors}
           retrying={retrying}
           onTryAgain={handleTryAgain}
+          onSignOut={handleSignOut}
         />
       );
     }
@@ -472,11 +482,13 @@ function BootError({
   colors,
   retrying,
   onTryAgain,
+  onSignOut,
 }: {
   insets: ReturnType<typeof useSafeAreaInsets>;
   colors: ReturnType<typeof useTheme>['colors'];
   retrying: boolean;
   onTryAgain: () => void;
+  onSignOut: () => void;
 }) {
   return (
     <View
@@ -516,6 +528,24 @@ function BootError({
           </Text>
         )}
       </PressableScale>
+
+      <Pressable
+        onPress={onSignOut}
+        style={styles.bootErrorSignOut}
+        accessibilityRole="button"
+        accessibilityLabel="Sign out"
+        hitSlop={8}
+        disabled={retrying}
+      >
+        <Text
+          style={[
+            styles.bootErrorSignOutLabel,
+            { color: colors.textPrimary, opacity: retrying ? 0.4 : 1 },
+          ]}
+        >
+          Sign out
+        </Text>
+      </Pressable>
     </View>
   );
 }
@@ -564,6 +594,17 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 20,
     color: Colors.white,
+  },
+  bootErrorSignOut: {
+    alignSelf: 'center',
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    marginTop: Spacing.md,
+  },
+  bootErrorSignOutLabel: {
+    fontFamily: FontFamily.semiBold,
+    fontSize: 14,
+    textDecorationLine: 'underline',
   },
 
   // ── Logo ──────────────────────────────────────────────────────────────────
