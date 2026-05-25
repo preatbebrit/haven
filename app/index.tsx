@@ -29,7 +29,7 @@ import Svg, { Polygon } from 'react-native-svg';
 import { useSplashDone } from '@/components/splash/splash-context';
 import { CloseIcon } from '@/components/ui/icons/close-icon';
 import { PressableScale } from '@/components/ui/pressable-scale';
-import { Colors, FontFamily, Radius, Spacing } from '@/constants/theme';
+import { Colors, FontFamily, Radius, Spacing, TextStyle } from '@/constants/theme';
 import { useActiveChat } from '@/contexts/active-chat-context';
 import { useAuth } from '@/contexts/auth-context';
 import { useTheme } from '@/hooks/use-theme';
@@ -602,8 +602,7 @@ const styles = StyleSheet.create({
     marginTop: Spacing.md,
   },
   bootErrorSignOutLabel: {
-    fontFamily: FontFamily.semiBold,
-    fontSize: 14,
+    ...TextStyle.bodyBold,
     textDecorationLine: 'underline',
   },
 

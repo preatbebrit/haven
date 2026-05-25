@@ -36,7 +36,7 @@ import {
   type StepFlowSecondaryButton,
   type StepFlowValue,
 } from '@/contexts/step-flow-context';
-import { Colors, FontFamily, FontSize, Spacing } from '@/constants/theme';
+import { Colors, FontFamily, FontSize, Spacing, TextStyle } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { mmddyyyyToIso } from '@/lib/date-input';
 import { supabase } from '@/lib/supabase';
@@ -461,17 +461,19 @@ export default function OnboardingScreen() {
               <Text style={[styles.secondaryText, { color: colors.textPrimary }]}>{secondary.label}</Text>
             </Pressable>
           ) : null}
-          <Pressable
-            onPress={handleSignOut}
-            style={styles.signOutLink}
-            accessibilityRole="button"
-            accessibilityLabel="Sign out"
-            hitSlop={8}
-          >
-            <Text style={[styles.signOutText, { color: colors.textPrimary }]}>
-              Sign out
-            </Text>
-          </Pressable>
+          {step === 1 ? (
+            <Pressable
+              onPress={handleSignOut}
+              style={styles.signOutLink}
+              accessibilityRole="button"
+              accessibilityLabel="Sign out"
+              hitSlop={8}
+            >
+              <Text style={[styles.signOutText, { color: colors.textPrimary }]}>
+                Sign out
+              </Text>
+            </Pressable>
+          ) : null}
         </View>
       </KeyboardAvoidingView>
     </StepFlowContext.Provider>
@@ -504,8 +506,6 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
   },
   signOutText: {
-    fontFamily: FontFamily.semiBold,
-    fontSize: 14,
-    textDecorationLine: 'underline',
+    ...TextStyle.bodyBold,
   },
 });

@@ -24,7 +24,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GlowUnderline } from '@/components/onboarding/glow-underline';
 import { PrimaryNextButton } from '@/components/onboarding/primary-next-button';
 import { PressableScale } from '@/components/ui/pressable-scale';
-import { Colors, FontFamily, FontSize, Spacing } from '@/constants/theme';
+import { Colors, FontFamily, FontSize, Spacing, TextStyle } from '@/constants/theme';
 import { useActiveChat } from '@/contexts/active-chat-context';
 import { useAuth } from '@/contexts/auth-context';
 import { useTheme } from '@/hooks/use-theme';
@@ -550,7 +550,7 @@ const styles = StyleSheet.create({
   footer: {
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.md,
-    gap: Spacing.sm,
+    gap: Spacing.md,
   },
   toggleBtn: {
     alignItems: 'center',
@@ -563,8 +563,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.65)',
   },
   toggleLabel: {
-    fontFamily: FontFamily.semiBold,
-    fontSize: FontSize.sm,
-    lineHeight: 20,
+    ...TextStyle.bodyBold,
   },
 });
