@@ -67,7 +67,6 @@ export default function PromptScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const { me } = useCurrentUser();
-  if (!me) return null;
   const { joinChat } = useActiveChat();
   const { width: screenW, height: screenH } = useWindowDimensions();
   const [answer, setAnswer] = useState('');
@@ -152,7 +151,7 @@ export default function PromptScreen() {
   }, [hasSource]);
 
   const handleShare = async () => {
-    if (!canShare) return;
+    if (!canShare || !me) return;
     // Must await: /answers reads this record on mount, and firing-and-forgetting
     // races with the navigation — the next screen gets the previous session's
     // value instead of the answer the user just typed.
@@ -200,6 +199,10 @@ export default function PromptScreen() {
   const screenLayerStyle = useAnimatedStyle(() => ({
     opacity: hasSource ? interpolate(progress.value, [0.55, 1], [0, 1], 'clamp') : 1,
   }));
+
+  // Sign-out flips me to null between renders. All hooks above must run
+  // unconditionally on every render — gate JSX here, not earlier.
+  if (!me) return null;
 
   return (
     <View style={styles.flex}>

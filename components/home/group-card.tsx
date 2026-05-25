@@ -40,7 +40,6 @@ export function GroupCard({ group }: Props) {
   const promptColors = getEffectivePromptColors(group);
   const { bannedIds } = useFriends();
   const { displayProfile } = useCurrentUser();
-  if (!displayProfile) return null;
   const visibleMembers = group.members.filter((m) => !bannedIds.has(m.id));
 
   // Pool = union of identityTags across the chat's members (excluding the
@@ -49,6 +48,7 @@ export function GroupCard({ group }: Props) {
   // sorted to the front; everything else keeps its first-seen order so
   // re-renders don't shuffle the layout.
   const identityPills = useMemo(() => {
+    if (!displayProfile) return { matched: [] as string[], unmatched: [] as string[] };
     const userTags = new Set(displayProfile.tags);
     const pool: string[] = [];
     const seen = new Set<string>();
@@ -68,7 +68,11 @@ export function GroupCard({ group }: Props) {
       else unmatched.push(t);
     }
     return { matched, unmatched };
-  }, [visibleMembers, displayProfile.tags]);
+  }, [visibleMembers, displayProfile?.tags, displayProfile]);
+
+  // Sign-out flips displayProfile to null between renders. All hooks above
+  // must run unconditionally on every render — gate JSX here, not earlier.
+  if (!displayProfile) return null;
 
   function handleJoin() {
     const node = promptRef.current;

@@ -186,7 +186,6 @@ export default function ProfileScreen() {
     { groupId: string; answer: string; createdAt: number }[]
   >([]);
   const { displayProfile, currentUser } = useCurrentUser();
-  if (!displayProfile) return null;
   const { session, updateProfilePublic } = useAuth();
   // Profile screen mounts behind the boot gate, so currentUser is the loaded
   // row. Treat null as "" so ProfileInfoBlock's loading branch (which exists
@@ -197,6 +196,7 @@ export default function ProfileScreen() {
   // they've joined and answered). Static identity fields come from the live
   // display profile so onboarding edits track through.
   const promptCards: PromptCardData[] = useMemo(() => {
+    if (!displayProfile) return [];
     return savedAnswers
       .map((a) => {
         const group = MOCK_GROUP_CARDS.find((g) => g.id === a.groupId);
@@ -214,9 +214,9 @@ export default function ProfileScreen() {
       .filter((c): c is PromptCardData => c !== null);
   }, [
     savedAnswers,
-    displayProfile.handle,
-    displayProfile.pronouns,
-    displayProfile.avatarSymbol,
+    displayProfile?.handle,
+    displayProfile?.pronouns,
+    displayProfile?.avatarSymbol,
   ]);
 
   // Re-read saved prompt answers on focus. Sorted newest-first so the most
@@ -383,6 +383,10 @@ export default function ProfileScreen() {
       Alert.alert("Couldn't save.");
     }
   }
+
+  // Sign-out flips displayProfile to null between renders. All hooks above
+  // must run unconditionally on every render — gate JSX here, not earlier.
+  if (!displayProfile) return null;
 
   return (
     <>

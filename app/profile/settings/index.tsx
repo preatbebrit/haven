@@ -52,7 +52,6 @@ export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const { mode: themeMode, setMode: setThemeMode, colors } = useTheme();
   const { me, currentUser } = useCurrentUser();
-  if (!me) return null;
   const { signOut } = useAuth();
   const { hasActivePin } = useLock();
   const { state: deleteState, deleteAccount, dismissError } = useDeleteAccount();
@@ -70,6 +69,10 @@ export default function SettingsScreen() {
     }
     return counts;
   }, [shares, currentUserId]);
+
+  // Sign-out flips me to null between renders. All hooks above must run
+  // unconditionally on every render — gate the rest of the body here.
+  if (!me) return null;
 
   const currentHandle = (currentUser?.username ?? '').trim() || me.handle;
   const pronounsLabel =

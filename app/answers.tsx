@@ -292,7 +292,6 @@ export default function AnswersScreen() {
   const { groupId } = useLocalSearchParams<{ groupId?: string }>();
   const { joinChat, activeChatId } = useActiveChat();
   const { me } = useCurrentUser();
-  if (!me) return null;
 
   // /chat is below /answers when the user arrived via the chat-header prompt
   // icon (chat → /answers as a push). Not in the stack when arriving from the
@@ -340,6 +339,7 @@ export default function AnswersScreen() {
   // card always matches onboarding even if the user edits their profile after
   // submitting an answer.
   useEffect(() => {
+    if (!me) return;
     const id = (groupId as string | undefined) ?? MOCK_GROUP_CARDS[0].id;
     let cancelled = false;
     getPromptAnswerForGroup(id).then((c) => {
@@ -356,7 +356,7 @@ export default function AnswersScreen() {
     return () => {
       cancelled = true;
     };
-  }, [groupId, me.handle, me.pronouns, me.avatarColor, me.avatarSymbol]);
+  }, [groupId, me?.handle, me?.pronouns, me?.avatarColor, me?.avatarSymbol, me]);
 
   // Mirror the chat's simulated leave/join by reading the persisted rows.
   // /chat writes setChatState on every rows change, so polling AsyncStorage
@@ -500,6 +500,10 @@ export default function AnswersScreen() {
   const pagerProgress = useDerivedValue(() =>
     snapInterval > 0 ? scrollOffset.value / snapInterval : 0,
   );
+
+  // Sign-out flips me to null between renders. All hooks above must run
+  // unconditionally on every render — gate JSX here, not earlier.
+  if (!me) return null;
 
   return (
     <>

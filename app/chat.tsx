@@ -802,7 +802,6 @@ function LikesSheet({ likerIds, onClose }: { likerIds: string[]; onClose: () => 
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const { me } = useCurrentUser();
-  if (!me) return null;
   const translateY = useSharedValue(600);
   const overlayOpacity = useSharedValue(0);
   const onCloseRef = useRef(onClose);
@@ -840,13 +839,17 @@ function LikesSheet({ likerIds, onClose }: { likerIds: string[]; onClose: () => 
     () =>
       likerIds
         .map((id) =>
-          id === 'me'
+          id === 'me' && me
             ? { id: 'me' as const, handle: 'you', pronouns: '', avatarSymbol: me.avatarSymbol, isMe: true }
             : memberById(id),
         )
         .filter((m): m is NonNullable<typeof m> => Boolean(m)),
-    [likerIds, me.avatarSymbol],
+    [likerIds, me?.avatarSymbol, me],
   );
+
+  // Sign-out flips me to null between renders. All hooks above must run
+  // unconditionally on every render — gate JSX here, not earlier.
+  if (!me) return null;
 
   return (
     <Modal transparent visible onRequestClose={handleClose}>
@@ -1082,7 +1085,6 @@ export default function ChatScreen() {
   const { friendsWithUnreadCount: unreadCount } = useNotifications();
   const { currentUserId, bannedIds } = useFriends();
   const { me } = useCurrentUser();
-  if (!me) return null;
   const { setAnim: setTabsReplaceAnim } = useTabsReplaceAnim();
 
   // Flip the (tabs) replace animation to 'pop' as soon as chat mounts so any
@@ -1156,10 +1158,10 @@ export default function ChatScreen() {
   // Seed with the active card's members + the live "me" user. Changes to
   // the live `me` flow in via a separate effect so the chat reflects edits
   // from settings/onboarding without remounting.
-  const [presentMembers, setPresentMembers] = useState<ChatUser[]>(() => [
-    ...cardChatMembers.filter((m) => m.handle !== simJoinHandle),
-    me,
-  ]);
+  const [presentMembers, setPresentMembers] = useState<ChatUser[]>(() => {
+    const base = cardChatMembers.filter((m) => m.handle !== simJoinHandle);
+    return me ? [...base, me] : base;
+  });
 
   // Hydration gate: chat-state-storage holds the rows / likes / roster /
   // used-drip-ids from the previous session so a reload doesn't replay the
@@ -1268,10 +1270,8 @@ export default function ChatScreen() {
   // card after expiry). Keeps presentMembers in sync with the active card's
   // members + the live `me`.
   useEffect(() => {
-    setPresentMembers([
-      ...cardChatMembers.filter((m) => m.handle !== simJoinHandle),
-      me,
-    ]);
+    const base = cardChatMembers.filter((m) => m.handle !== simJoinHandle);
+    setPresentMembers(me ? [...base, me] : base);
     // The `me` sync effect below keeps the `me` entry fresh on subsequent
     // profile edits; intentionally not depending on `me` here so per-card
     // resets don't run on every profile change.
@@ -1281,6 +1281,7 @@ export default function ChatScreen() {
   // Keep the "me" entry in presentMembers in sync with the current user
   // profile (handle/pronouns/avatar updates from settings or fresh onboarding).
   useEffect(() => {
+    if (!me) return;
     setPresentMembers((prev) => {
       const idx = prev.findIndex((m) => m.id === 'me');
       if (idx < 0) return [...prev, me];
@@ -1862,7 +1863,7 @@ export default function ChatScreen() {
     }
 
     // ── Others' messages (incoming) ──
-    const member = memberById(item.authorId, me);
+    const member = memberById(item.authorId, me ?? undefined);
     const handle = member?.handle ?? item.authorId;
     const prev = displayRows[index - 1];
     const next = displayRows[index + 1];
@@ -1979,13 +1980,14 @@ export default function ChatScreen() {
   );
 
   const withLabel = useMemo(() => {
+    if (!me) return '';
     // "With …" lists the *other* people in the chat — the reader already
     // knows they joined. Excluding `me` keeps the count honest.
     const others = visibleMembers.filter((m) => m.id !== me.id);
     const handles = others.slice(0, 3).map((m) => `@${m.handle}`).join(', ');
     const more = others.length > 3 ? ` +${others.length - 3} more` : '';
     return `${handles}${more}`;
-  }, [visibleMembers, me.id]);
+  }, [visibleMembers, me?.id, me]);
 
   const ListHeader = useCallback(
     () => (
@@ -2000,6 +2002,10 @@ export default function ChatScreen() {
     ),
     [dateLabel, withLabel, colors.textPrimary, colors.textSecondary],
   );
+
+  // Sign-out flips me to null between renders. All hooks above must run
+  // unconditionally on every render — gate JSX here, not earlier.
+  if (!me) return null;
 
   return (
     <>
