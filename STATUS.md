@@ -1,7 +1,7 @@
 # Haven — Project Status
 
 **Repo:** `github.com/preatbebrit/haven` (branch `main`)
-**Last commit:** `50b35e3` — Fix Rules of Hooks violation in components using me/displayProfile null guards
+**Last commit:** `cb1c85c` — Phase 1.1: centralize out_status display mappings into lib/profile-display.ts
 
 ## ✅ Done & committed
 - Supabase auth (signup, profile trigger, RLS, onboarding) — `5e0f3bf`
@@ -25,6 +25,7 @@
 - **Design system compliance — sign-out links + visual polish** — `f611dde` — three sign-out/toggle labels switched from ad-hoc fontFamily + fontSize to `TextStyle.bodyBold` preset; sign-out link in onboarding now only renders on step 1; misc spacing / underline tweaks.
 - **Phase 1.1 — username probe-skip on retreat** — `2f6c4bb` — when the typed value matches the persisted username in context (resume or retreat case), short-circuit the availability probe and set status to 'available' synchronously. Saves the 400ms debounce delay where the Next button was inactive.
 - **Fix Rules of Hooks violation in null-guarded components** — `50b35e3` — commit `fe4743e` introduced a hook-order bug by placing early-return null guards after some hooks but before others. Six files affected; all fixed by moving the null guard immediately before the JSX return and making intermediate hooks (useMemo, useEffect) handle the null case internally. Caught when ProfileScreen crashed on sign-out with "Rendered fewer hooks than expected."
+- **Phase 1.1 — centralize out_status display mappings** — `cb1c85c` — extracted out_status display strings to `lib/profile-display.ts` as `OUT_STATUS_TAG_LABELS` (identity-tag form: 'Out' / 'Not out' / 'Sort-of out') and `OUT_STATUS_ANSWER_LABELS` (settings-answer form: 'Yes' / 'No' / 'Sort of'). Both forms preserved as distinct named exports. Five files updated to import from the new location. Also fixed a mock-friends.ts gap where no member had 'Sort-of out' as an identity tag, which masked a latent measurement race in IdentityPillRow when the current user's status was 'sort-of'.
 
 ## 🔴 Active priority — data-layer architectural chapter (in progress)
 The codebase was originally built single-user-on-device and the data layer was never updated for multi-user use. We've now done the architectural planning: every data type has a deliberate home, the work is sequenced into 6 phases, and Phase 1 is mid-planning.
@@ -65,9 +66,9 @@ Device-wide, no change: theme mode.
 - **`email.tsx` loading overlay polish.** The opaque white blocker + spinner during sign-in is heavy-handed. Replace with a lighter loading state (button text change, small in-button spinner). Bundle this fix with the in-progress auth-keyboard work commit; do not touch `email.tsx` in isolation.
 
 ### Phase 1.1 (small follow-ups, no blocker)
-- **Centralize profile field → display mapping.** Logic that turns raw `out_status` into "Out" / "Sort-of out" / "Not out" pill labels lives in `current-user-context.tsx` mixed with other tag construction. Extract to a dedicated `lib/profile-display.ts` helper when a second consumer materializes.
 - **`validate_username(text)` SQL function extraction.** `complete_onboarding` currently inlines the length / format / reserved validation. When a username-change RPC is added (e.g., for a future settings-rename flow), extract the validation block into `public.validate_username(uname text)` and call from both.
 - **dev-seed `clearEverything` doesn't reset server-side profile fields.** Currently only clears local mocks (friends, gallery, etc.). Post-Phase-1, profile data lives in Supabase but `clearEverything` doesn't touch it. Add Supabase updates to null out `profiles_public.bio`, `profiles_public.intro_seen`, and the seven fields in `profiles_private` when "Reset everything" is invoked. Worth doing whenever the dev-tools get their next pass.
+- **IdentityPillRow measurement race when only one pill key changes.** The pill row uses an opacity:0 → onLayout-measure → opacity:1 pattern, where a useEffect resets `measuring=true` whenever matched/unmatched keys change. For typical out_status transitions, many pill indices shift in the combined `[...matched, ...unmatched]` array, so many pills get fresh React keys → fresh onLayout fires → measurement completes. But when only one pill key changes (e.g., a single-tag transition with no index cascade), RN doesn't fire onLayout (no layout change), `measuring` stays true forever, and the whole row stays at opacity 0. Currently masked by the symmetric mock data in `constants/mock-friends.ts` (fixed in commit `cb1c85c`) but the underlying race could resurface when real friend identity data lands in Phase 4+. Worth refactoring to a synchronous measurement strategy or resetting `measuring` correctly on partial key changes.
 
 ### Future phases (architectural, larger scope)
 - **Lookalike-character flagging for usernames.** Phase 4+ work: contextual warnings when displaying users to people who have visually similar handles in their friends list (e.g., `0`/`O`, `1`/`l`/`I`). Plan §11 explicitly defers this; Phase 1 accepts the residual impersonation risk.
