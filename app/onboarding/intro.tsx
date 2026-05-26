@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useState, type ReactNode } from 'react';
 import {
   Alert,
   Image,
@@ -20,13 +20,15 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { IntroCarousel1 } from '@/components/onboarding/intro-carousel-1';
+import { IntroCarousel2 } from '@/components/onboarding/intro-carousel-2';
+import { IntroCarousel3 } from '@/components/onboarding/intro-carousel-3';
 import { PrimaryNextButton } from '@/components/onboarding/primary-next-button';
 import { useAuth } from '@/contexts/auth-context';
 import { Colors, FontFamily, FontSize, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { supabase } from '@/lib/supabase';
 
-const tutorialImage1 = require('@/assets/images/tutorial-1.png');
 const tutorialImage2 = require('@/assets/images/tutorial-2.png');
 const tutorialImage3 = require('@/assets/images/tutorial-3.png');
 
@@ -34,7 +36,9 @@ type Slide = {
   id: string;
   title: string;
   subtitle: string;
-  image: ImageSourcePropType;
+  // For slide 1 the illustration is a custom animated composition; the other
+  // two still use static PNGs.
+  illustration: (active: boolean) => ReactNode;
 };
 
 const SLIDES: Slide[] = [
@@ -42,22 +46,26 @@ const SLIDES: Slide[] = [
     id: '1',
     title: 'Join a chat',
     subtitle: "Find a group that's right for you.",
-    image: tutorialImage1,
+    illustration: (active) => <IntroCarousel1 active={active} />,
   },
   {
     id: '2',
     title: 'Answer the prompt',
     subtitle: 'Get the conversation started and learn a little about each member of the chat.',
-    image: tutorialImage2,
+    illustration: (active) => <IntroCarousel2 active={active} />,
   },
   {
     id: '3',
     title: 'Hang out for a week',
     subtitle:
       'After a week, you get moved to a new chat. You can choose to keep in touch with people from the chat.',
-    image: tutorialImage3,
+    illustration: (active) => <IntroCarousel3 active={active} />,
   },
 ];
+
+function StaticIllustration({ source }: { source: ImageSourcePropType }) {
+  return <Image source={source} style={styles.tutorialImage} resizeMode="contain" />;
+}
 
 const BAR_GAP = 4;
 // Vertical space reserved between the illustration and the copy on each page;
@@ -75,6 +83,9 @@ export default function OnboardingIntroScreen() {
   // in the set, the Next button activates and stays active even on swipe-back.
   const [seen, setSeen] = useState<Set<number>>(() => new Set([0]));
   const allSeen = seen.size === SLIDES.length;
+  // Drives the per-slide illustration's `active` prop so animations
+  // (e.g. IntroCarousel1's pop-in) replay each time the slide becomes active.
+  const [activeIndex, setActiveIndex] = useState(0);
 
   const scrollX = useSharedValue(0);
   const pageWidthSV = useSharedValue(0);
@@ -99,6 +110,7 @@ export default function OnboardingIntroScreen() {
       if (pageWidthSV.value === 0) return;
       const idx = Math.round(event.contentOffset.x / pageWidthSV.value);
       runOnJS(markSeen)(idx);
+      runOnJS(setActiveIndex)(idx);
     },
   });
 
@@ -147,13 +159,7 @@ export default function OnboardingIntroScreen() {
         >
           {SLIDES.map((s, i) => (
             <View key={s.id} style={[styles.page, { width: pageWidth }]}>
-              <View style={styles.illustrationHost}>
-                <Image
-                  source={s.image}
-                  style={styles.tutorialImage}
-                  resizeMode="contain"
-                />
-              </View>
+              <View style={styles.illustrationHost}>{s.illustration(activeIndex === i)}</View>
               <View style={styles.copyHost}>
                 <Text style={[styles.title, { color: colors.textPrimary }]}>{s.title}</Text>
                 <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{s.subtitle}</Text>
@@ -283,7 +289,7 @@ const styles = StyleSheet.create({
   illustrationHost: {
     flex: 1,
     minHeight: 260,
-    maxHeight: 360,
+    maxHeight: 400,
     overflow: 'hidden',
   },
   tutorialImage: { width: '100%', height: '100%' },
