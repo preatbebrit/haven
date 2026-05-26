@@ -534,10 +534,14 @@ const styles = StyleSheet.create({
   },
   confirmWrap: { marginTop: Spacing.sm },
   bigInput: {
+    height: 56,
     fontFamily: FontFamily.semiBold,
     fontSize: 32,
+    lineHeight: 40,
     letterSpacing: -0.64,
-    paddingVertical: Spacing.sm,
+    paddingVertical: 0,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   error: {
     marginTop: Spacing.md,
