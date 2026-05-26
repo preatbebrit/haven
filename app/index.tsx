@@ -33,7 +33,6 @@ import { Colors, FontFamily, Radius, Spacing, TextStyle } from '@/constants/them
 import { useActiveChat } from '@/contexts/active-chat-context';
 import { useAuth } from '@/contexts/auth-context';
 import { useTheme } from '@/hooks/use-theme';
-import { supabase } from '@/lib/supabase';
 
 // 5-pointed star polygon in a 100×100 viewBox (center 50,50, outer R=45, inner r≈17.2).
 const STAR_POINTS = '50,5 60.1,36.1 92.8,36.1 66.4,55.3 76.5,86.4 50,67.2 23.5,86.4 33.6,55.3 7.2,36.1 39.9,36.1';
@@ -195,6 +194,7 @@ export default function WelcomeScreen() {
     session,
     profileState,
     refreshProfileWithRetry,
+    signOut,
   } = useAuth();
   const [bootResolved, setBootResolved] = useState(false);
   const [retrying, setRetrying] = useState(false);
@@ -211,11 +211,11 @@ export default function WelcomeScreen() {
 
   const handleSignOut = useCallback(async () => {
     try {
-      await supabase.auth.signOut({ scope: 'local' });
+      await signOut({ scope: 'local' });
     } catch (e) {
       console.warn('[boot-error] sign-out failed:', e);
     }
-  }, []);
+  }, [signOut]);
 
   useEffect(() => {
     if (authLoading || !isHydrated) return;

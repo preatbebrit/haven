@@ -100,7 +100,7 @@ export default function OnboardingScreen() {
   const { colors } = useTheme();
   const onboarding = useOnboarding();
   const { saveDraft, setCurrentStep } = onboarding;
-  const { session, profileState, refreshProfileWithRetry } = useAuth();
+  const { session, profileState, refreshProfileWithRetry, signOut } = useAuth();
   const lock = useLock();
 
   // Resume from the server-persisted step if the user has one (chunk 3).
@@ -370,12 +370,12 @@ export default function OnboardingScreen() {
   // is no worse off than before.
   const handleSignOut = useCallback(async () => {
     try {
-      await supabase.auth.signOut({ scope: 'local' });
+      await signOut({ scope: 'local' });
     } catch (e) {
       console.warn('[onboarding] sign-out failed:', e);
     }
     router.replace('/');
-  }, [router]);
+  }, [router, signOut]);
 
   const handleBack = useCallback(() => {
     if (backOverride) {

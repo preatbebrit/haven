@@ -12,7 +12,7 @@ import {
 import { AppState, type AppStateStatus } from 'react-native';
 
 import { setCurrentUserId } from '@/lib/current-user';
-import { consumePendingWipe } from '@/lib/local-data-reset';
+import { consumePendingWipe, wipeAllLocalData } from '@/lib/local-data-reset';
 import { runProfileSchemaMigrations } from '@/lib/profile-sync';
 import { SUPABASE_CONFIGURED, supabase } from '@/lib/supabase';
 
@@ -141,7 +141,7 @@ type AuthContextValue = {
   updateProfilePublic: (patch: Partial<ProfilePublic>) => void;
   /** Same contract as updateProfilePublic, for profiles_private. */
   updateProfilePrivate: (patch: Partial<ProfilePrivate>) => void;
-  signOut: () => Promise<void>;
+  signOut: (options?: { scope?: 'global' | 'local' | 'others' }) => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -347,9 +347,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => sub.remove();
   }, [profileState.kind, session, refreshProfileForUser]);
 
-  const signOut = useCallback(async () => {
-    await supabase.auth.signOut();
-  }, []);
+  const signOut = useCallback(
+    async (options?: { scope?: 'global' | 'local' | 'others' }) => {
+      await supabase.auth.signOut(options);
+      try {
+        await wipeAllLocalData();
+      } catch (e) {
+        console.warn('[auth] local wipe after sign-out failed:', e);
+      }
+    },
+    [],
+  );
 
   // Write-through helpers (§A of chunk 3). Functional setState avoids stale
   // closures when multiple patches land in the same React batch.
