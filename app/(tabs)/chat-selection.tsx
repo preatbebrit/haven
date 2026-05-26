@@ -13,13 +13,17 @@ import { Toast } from '@/components/ui/toast';
 import { MOCK_GROUP_CARDS } from '@/constants/mock-groups';
 import { Colors, Spacing } from '@/constants/theme';
 import { useActiveChat } from '@/contexts/active-chat-context';
+import { useAuth } from '@/contexts/auth-context';
 import { useNotifications } from '@/hooks/use-notifications';
 import { useTheme } from '@/hooks/use-theme';
 import {
   getHouseRulesDismissed,
   setHouseRulesDismissed,
 } from '@/lib/house-rules-storage';
-import { setHouseRulesTransitionSource } from '@/lib/house-rules-transition';
+import {
+  setHouseRulesMorphActive,
+  setHouseRulesTransitionSource,
+} from '@/lib/house-rules-transition';
 import { popPendingToast } from '@/lib/pending-toast';
 
 export default function HomeScreen() {
@@ -30,20 +34,24 @@ export default function HomeScreen() {
   // double-counts a single friend who shared gallery + prompts + identity.
   const { friendsWithUnreadCount: unreadCount } = useNotifications();
   const { isHydrated, activeChatId } = useActiveChat();
+  const { session } = useAuth();
+  const userId = session?.user.id ?? null;
   const { colors } = useTheme();
   const [toast, setToast] = useState<string | null>(null);
   // null = not yet hydrated, false = show tile, true = dismissed (hide tile)
   const [houseRulesDismissed, setHouseRulesDismissedState] = useState<boolean | null>(null);
 
   useEffect(() => {
+    if (!userId) return;
     let alive = true;
-    getHouseRulesDismissed().then((v) => {
+    setHouseRulesDismissedState(null);
+    getHouseRulesDismissed(userId).then((v) => {
       if (alive) setHouseRulesDismissedState(v);
     });
     return () => {
       alive = false;
     };
-  }, []);
+  }, [userId]);
 
   // The (tabs) replace animation is owned by chat.tsx: it flips to 'pop' on
   // chat mount and resets to 'push' in chat's cleanup (post-transition).
@@ -82,15 +90,17 @@ export default function HomeScreen() {
   const handleHouseRulesPress = useCallback(
     (rect: { x: number; y: number; width: number; height: number }) => {
       setHouseRulesTransitionSource({ rect });
+      setHouseRulesMorphActive(true);
       router.push({ pathname: '/house-rules', params: { source: 'home' } });
     },
     [router],
   );
 
   const handleHouseRulesDismiss = useCallback(() => {
+    if (!userId) return;
     setHouseRulesDismissedState(true);
-    setHouseRulesDismissed(true);
-  }, []);
+    setHouseRulesDismissed(userId, true);
+  }, [userId]);
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.backgroundPrimary }]}>

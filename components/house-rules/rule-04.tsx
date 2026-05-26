@@ -70,16 +70,20 @@ export function Rule04({ active }: Props) {
       flightX.value = 0;
       return;
     }
+    // SPEED scales the entry cascade only. Continuous loops (wing flap,
+    // flight) keep their natural cadence so the bee doesn't read as frantic.
+    const SPEED = 0.85;
+    const t = (ms: number) => ms * SPEED;
     const pop = (overshoot: number, duration = 340) =>
-      withTiming(1, { duration, easing: Easing.out(Easing.back(overshoot)) });
+      withTiming(1, { duration: t(duration), easing: Easing.out(Easing.back(overshoot)) });
 
     // 1. "04"
-    numberAnim.value = withTiming(1, { duration: 280, easing: Easing.out(Easing.cubic) });
+    numberAnim.value = withTiming(1, { duration: t(280), easing: Easing.out(Easing.cubic) });
     // 2. Bee scales in
-    beeAnim.value = withDelay(220, pop(1.6, 440));
+    beeAnim.value = withDelay(t(220), pop(1.6, 440));
     // 3. Start wing flap shortly after the bee lands, loop forever
     flap.value = withDelay(
-      560,
+      t(560),
       withRepeat(
         withTiming(FLAP_MAX, {
           duration: 220,
@@ -92,7 +96,7 @@ export function Rule04({ active }: Props) {
     // 3b. Flight loop: rest → zip off-left → teleport off-right → fly back in
     // → rest. Repeats forever while card is active.
     flightX.value = withDelay(
-      FLIGHT_START_DELAY,
+      t(FLIGHT_START_DELAY),
       withRepeat(
         withSequence(
           // Accelerate out to the left
@@ -115,13 +119,13 @@ export function Rule04({ active }: Props) {
       ),
     );
     // 4. "your-"
-    yourAnim.value = withDelay(640, pop(1.3, 420));
+    yourAnim.value = withDelay(t(640), pop(1.3, 420));
     // 5. "self"
-    selfAnim.value = withDelay(880, pop(1.3, 420));
+    selfAnim.value = withDelay(t(880), pop(1.3, 420));
     // 6. Body text
     bodyAnim.value = withDelay(
-      1180,
-      withTiming(1, { duration: 380, easing: Easing.out(Easing.cubic) }),
+      t(1180),
+      withTiming(1, { duration: t(380), easing: Easing.out(Easing.cubic) }),
     );
   }, [active, numberAnim, beeAnim, yourAnim, selfAnim, bodyAnim, flap, flightX]);
 

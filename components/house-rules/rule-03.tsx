@@ -53,31 +53,33 @@ export function Rule03({ active }: Props) {
       pupilX.value = PUPIL_SWEEP_LEFT;
       return;
     }
+    const SPEED = 0.85;
+    const t = (ms: number) => ms * SPEED;
     const pop = (overshoot: number, duration = 340) =>
-      withTiming(1, { duration, easing: Easing.out(Easing.back(overshoot)) });
+      withTiming(1, { duration: t(duration), easing: Easing.out(Easing.back(overshoot)) });
 
     // 1. "03"
-    numberAnim.value = withTiming(1, { duration: 280, easing: Easing.out(Easing.cubic) });
+    numberAnim.value = withTiming(1, { duration: t(280), easing: Easing.out(Easing.cubic) });
     // 2. "read" first
-    readAnim.value = withDelay(260, pop(1.3, 400));
+    readAnim.value = withDelay(t(260), pop(1.3, 400));
     // 3. "the" lands shortly after "read"
-    theAnim.value = withDelay(480, pop(1.3, 400));
+    theAnim.value = withDelay(t(480), pop(1.3, 400));
     // 4. "room" (the big teal display word)
-    roomAnim.value = withDelay(780, pop(1.4, 440));
+    roomAnim.value = withDelay(t(780), pop(1.4, 440));
     // 5. Eyes blink in (slight scale + fade)
-    eyesAnim.value = withDelay(1080, pop(1.7, 440));
+    eyesAnim.value = withDelay(t(1080), pop(1.7, 440));
     // 6. Pupils sweep left → right, then settle back to the design default
     pupilX.value = withDelay(
-      1380,
+      t(1380),
       withSequence(
-        withTiming(PUPIL_SWEEP_RIGHT, { duration: 1200, easing: Easing.inOut(Easing.cubic) }),
-        withTiming(0, { duration: 480, easing: Easing.out(Easing.cubic) }),
+        withTiming(PUPIL_SWEEP_RIGHT, { duration: t(1200), easing: Easing.inOut(Easing.cubic) }),
+        withTiming(0, { duration: t(480), easing: Easing.out(Easing.cubic) }),
       ),
     );
     // 7. Body text fades up
     bodyAnim.value = withDelay(
-      1480,
-      withTiming(1, { duration: 380, easing: Easing.out(Easing.cubic) }),
+      t(1480),
+      withTiming(1, { duration: t(380), easing: Easing.out(Easing.cubic) }),
     );
   }, [active, numberAnim, readAnim, theAnim, roomAnim, eyesAnim, bodyAnim, pupilX]);
 

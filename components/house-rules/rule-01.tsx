@@ -65,37 +65,40 @@ export function Rule01({ active }: Props) {
       otherwiseTiltAnim.value = 0;
       return;
     }
+    // Global speed multiplier for this rule page. <1 = faster.
+    const SPEED = 0.85;
+    const t = (ms: number) => ms * SPEED;
     // All entrances use Easing.out(Easing.back(...)) — single overshoot then
     // settle, no continuous oscillation.
     const pop = (overshoot: number, duration = 340) =>
-      withTiming(1, { duration, easing: Easing.out(Easing.back(overshoot)) });
+      withTiming(1, { duration: t(duration), easing: Easing.out(Easing.back(overshoot)) });
 
     // Hearts float up + fade out ~250ms after they finish popping. Soft ease-out
     // so they accelerate gently and slow as they rise.
     const float = (duration = 1600) =>
-      withTiming(1, { duration, easing: Easing.out(Easing.quad) });
+      withTiming(1, { duration: t(duration), easing: Easing.out(Easing.quad) });
 
     // 1. "01" first
-    numberAnim.value = withTiming(1, { duration: 280, easing: Easing.out(Easing.cubic) });
-    tinyHeartAnim.value = withDelay(100, pop(1.6, 320));
-    tinyHeartFloat.value = withDelay(260, float()); // starts mid-pop (~50% through)
+    numberAnim.value = withTiming(1, { duration: t(280), easing: Easing.out(Easing.cubic) });
+    tinyHeartAnim.value = withDelay(t(100), pop(1.6, 320));
+    tinyHeartFloat.value = withDelay(t(260), float()); // starts mid-pop (~50% through)
     // 2. "Be"
-    beAnim.value = withDelay(320, pop(1.5, 360));
+    beAnim.value = withDelay(t(320), pop(1.5, 360));
     // 3. "kind" (big sky-blue word) + big heart riding along
-    kindAnim.value = withDelay(580, pop(1.3, 380));
-    bigHeartAnim.value = withDelay(700, pop(1.7, 360));
-    bigHeartFloat.value = withDelay(870, float()); // starts mid-pop (~50% through)
+    kindAnim.value = withDelay(t(580), pop(1.3, 380));
+    bigHeartAnim.value = withDelay(t(700), pop(1.7, 360));
+    bigHeartFloat.value = withDelay(t(870), float()); // starts mid-pop (~50% through)
     // 4. "otherwise, gtfoh" — comes in LEVEL first, then tilts to 5°
     otherwiseEnterAnim.value = withDelay(
-      940,
-      withTiming(1, { duration: 320, easing: Easing.out(Easing.cubic) }),
+      t(940),
+      withTiming(1, { duration: t(320), easing: Easing.out(Easing.cubic) }),
     );
-    smallHeartAnim.value = withDelay(1060, pop(1.5, 340));
-    smallHeartFloat.value = withDelay(1230, float()); // starts mid-pop (~50% through)
+    smallHeartAnim.value = withDelay(t(1060), pop(1.5, 340));
+    smallHeartFloat.value = withDelay(t(1230), float()); // starts mid-pop (~50% through)
     // 5. After "otherwise" lands, tilt it down to the 5° resting angle
     otherwiseTiltAnim.value = withDelay(
-      1320,
-      withTiming(1, { duration: 380, easing: Easing.out(Easing.cubic) }),
+      t(1320),
+      withTiming(1, { duration: t(380), easing: Easing.out(Easing.cubic) }),
     );
   }, [
     active,

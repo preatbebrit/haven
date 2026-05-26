@@ -44,28 +44,30 @@ export function Rule02({ active }: Props) {
       body2Anim.value = 0;
       return;
     }
+    const SPEED = 0.85;
+    const t = (ms: number) => ms * SPEED;
     const pop = (overshoot: number, duration = 340) =>
-      withTiming(1, { duration, easing: Easing.out(Easing.back(overshoot)) });
+      withTiming(1, { duration: t(duration), easing: Easing.out(Easing.back(overshoot)) });
 
     // 1. "02"
-    numberAnim.value = withTiming(1, { duration: 280, easing: Easing.out(Easing.cubic) });
+    numberAnim.value = withTiming(1, { duration: t(280), easing: Easing.out(Easing.cubic) });
     // 2. "h@ven is not a" (slide up + fade)
-    headlineAnim.value = withDelay(280, pop(1.3, 420));
+    headlineAnim.value = withDelay(t(280), pop(1.3, 420));
     // 3. "dating app" (the green word)
-    datingAnim.value = withDelay(620, pop(1.4, 380));
+    datingAnim.value = withDelay(t(620), pop(1.4, 380));
     // 4. Strikethrough draws across — sweeps from left to right
     strikeAnim.value = withDelay(
-      880,
-      withTiming(1, { duration: 460, easing: Easing.out(Easing.cubic) }),
+      t(880),
+      withTiming(1, { duration: t(460), easing: Easing.out(Easing.cubic) }),
     );
     // 5. Body text fades up
     body1Anim.value = withDelay(
-      1180,
-      withTiming(1, { duration: 380, easing: Easing.out(Easing.cubic) }),
+      t(1180),
+      withTiming(1, { duration: t(380), easing: Easing.out(Easing.cubic) }),
     );
     body2Anim.value = withDelay(
-      1340,
-      withTiming(1, { duration: 380, easing: Easing.out(Easing.cubic) }),
+      t(1340),
+      withTiming(1, { duration: t(380), easing: Easing.out(Easing.cubic) }),
     );
   }, [active, numberAnim, headlineAnim, datingAnim, strikeAnim, body1Anim, body2Anim]);
 

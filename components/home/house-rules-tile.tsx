@@ -15,7 +15,10 @@ import { HouseIllustration } from '@/components/home/house-illustration';
 import { TILE_HEIGHT } from '@/components/home/house-rules-tile-visual';
 import { CloseIcon } from '@/components/ui/icons/close-icon';
 import { Colors, FontFamily, Radius, TextStyle } from '@/constants/theme';
-import type { Rect } from '@/lib/house-rules-transition';
+import {
+  useHouseRulesMorphActive,
+  type Rect,
+} from '@/lib/house-rules-transition';
 
 type Props = {
   onPress: (rect: Rect) => void;
@@ -47,6 +50,13 @@ export function HouseRulesTile({ onPress, onDismiss }: Props) {
   // 0 = visible; 1 = fully dismissed (collapsed + invisible)
   const dismissProgress = useSharedValue(0);
   const dismissingRef = useRef(false);
+  // While the morph route is open, the tile is rendered inside the morphing
+  // wrapper. Hide the home copy so they don't both appear at once.
+  const morphActive = useHouseRulesMorphActive();
+  const morphHide = useSharedValue(0);
+  useEffect(() => {
+    morphHide.value = morphActive ? 1 : 0;
+  }, [morphActive, morphHide]);
 
   useEffect(() => {
     // Small startup delay so the pop is visible even when chat-selection mounts
@@ -80,9 +90,10 @@ export function HouseRulesTile({ onPress, onDismiss }: Props) {
     ],
   }));
 
-  // Outer fades + scales everything together (badge + tile)
+  // Outer fades + scales everything together (badge + tile). `morphHide`
+  // multiplies opacity to 0 while the morph route owns the visual.
   const outerDismissStyle = useAnimatedStyle(() => ({
-    opacity: 1 - dismissProgress.value,
+    opacity: (1 - dismissProgress.value) * (1 - morphHide.value),
     transform: [{ scale: 1 - dismissProgress.value * 0.1 }],
   }));
 

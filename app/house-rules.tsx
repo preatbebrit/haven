@@ -34,6 +34,7 @@ import { Colors, Radius } from '@/constants/theme';
 import {
   clearHouseRulesTransitionSource,
   getHouseRulesTransitionSource,
+  setHouseRulesMorphActive,
   type HouseRulesTransitionSource,
 } from '@/lib/house-rules-transition';
 
@@ -90,6 +91,15 @@ export default function HouseRulesScreen() {
       runOnJS(setActiveIndex)(idx);
     },
   });
+
+  // Tell the home tile to stay hidden for the entire lifetime of this route
+  // (it was set to active when the user tapped). Clearing on unmount covers
+  // every exit path: close button, hardware back, dismiss-from-elsewhere.
+  useEffect(() => {
+    return () => {
+      setHouseRulesMorphActive(false);
+    };
+  }, []);
 
   useEffect(() => {
     if (!hasSource) return;
@@ -276,7 +286,11 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   morph: {
     position: 'absolute',
-    overflow: 'hidden',
+    // overflow stays 'visible' so the tile-visual's "Read me" badge (which
+    // sits at top: -13 of the tile) isn't clipped while the morph lands back
+    // on the source rect during close. The wrapper's borderRadius still
+    // rounds its own background; the only child is the pinned tile visual
+    // which carries a matching radius.
   },
   tileVisualPin: {
     position: 'absolute',

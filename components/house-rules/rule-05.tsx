@@ -48,21 +48,23 @@ export function Rule05({ active }: Props) {
       subtitleAnim.value = 0;
       return;
     }
+    const SPEED = 0.85;
+    const t = (ms: number) => ms * SPEED;
     // 1. "05"
-    numberAnim.value = withTiming(1, { duration: 280, easing: Easing.out(Easing.cubic) });
+    numberAnim.value = withTiming(1, { duration: t(280), easing: Easing.out(Easing.cubic) });
     // 2. Headline lines cascade in one at a time
     const LINE_START = 280;
     const LINE_STAGGER = 220;
     lineAnims.forEach((v, i) => {
       v.value = withDelay(
-        LINE_START + i * LINE_STAGGER,
-        withTiming(1, { duration: 460, easing: Easing.out(Easing.cubic) }),
+        t(LINE_START + i * LINE_STAGGER),
+        withTiming(1, { duration: t(460), easing: Easing.out(Easing.cubic) }),
       );
     });
     // 3. Subtitle lands after the last headline line
     subtitleAnim.value = withDelay(
-      LINE_START + LINES.length * LINE_STAGGER + 80,
-      withTiming(1, { duration: 440, easing: Easing.out(Easing.cubic) }),
+      t(LINE_START + LINES.length * LINE_STAGGER + 80),
+      withTiming(1, { duration: t(440), easing: Easing.out(Easing.cubic) }),
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active]);
