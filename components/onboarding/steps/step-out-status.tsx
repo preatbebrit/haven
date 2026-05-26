@@ -1,5 +1,12 @@
-import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { LayoutChangeEvent, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import Animated, {
+  Easing,
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 
 import { ResourcesList } from '@/components/resources/resources-list';
 import { CheckIcon } from '@/components/ui/icons/check-icon';
@@ -13,6 +20,12 @@ import { useTheme } from '@/hooks/use-theme';
 
 type Phase = 'out' | 'environment' | 'resources';
 
+const PHASE_ORDER: Phase[] = ['out', 'environment', 'resources'];
+
+// Match the parent onboarding step animation (app/onboarding/index.tsx).
+const TRANSITION_MS = 280;
+const OUTGOING_OFFSET = 32;
+
 const OUT_OPTIONS: { id: OutStatus; label: string }[] = [
   { id: 'yes', label: 'Yes' },
   { id: 'no', label: 'No' },
@@ -24,6 +37,24 @@ export function StepOutStatus({ isActive }: { isActive: boolean }) {
   const { setPrimaryButton, setSecondaryButton, setBackHandler, advance } = useStepFlow();
   const { outStatus, setOutStatus, acceptingEnvironment, setAcceptingEnvironment } = useOnboarding();
   const [phase, setPhase] = useState<Phase>('out');
+  const [prevPhase, setPrevPhase] = useState<Phase | null>(null);
+  const directionRef = useRef<'forward' | 'backward'>('forward');
+  const [bodyWidth, setBodyWidth] = useState(0);
+
+  const currTX = useSharedValue(0);
+  const currOpacity = useSharedValue(1);
+  const prevTX = useSharedValue(0);
+  const prevOpacity = useSharedValue(1);
+
+  const goToPhase = useCallback((next: Phase) => {
+    setPhase((current) => {
+      if (current === next) return current;
+      directionRef.current =
+        PHASE_ORDER.indexOf(next) > PHASE_ORDER.indexOf(current) ? 'forward' : 'backward';
+      setPrevPhase(current);
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     if (!isActive) return;
@@ -35,7 +66,7 @@ export function StepOutStatus({ isActive }: { isActive: boolean }) {
         onPress: () => advance(),
       });
       setSecondaryButton(null);
-      setBackHandler(() => setPhase('environment'));
+      setBackHandler(() => goToPhase('environment'));
       return;
     }
 
@@ -46,14 +77,14 @@ export function StepOutStatus({ isActive }: { isActive: boolean }) {
         onPress: () => {
           if (!acceptingEnvironment) return;
           if (ACCEPTING_ENVIRONMENT_CONCERNING.has(acceptingEnvironment)) {
-            setPhase('resources');
+            goToPhase('resources');
             return;
           }
           advance();
         },
       });
       setSecondaryButton(null);
-      setBackHandler(() => setPhase('out'));
+      setBackHandler(() => goToPhase('out'));
       return;
     }
 
@@ -62,7 +93,7 @@ export function StepOutStatus({ isActive }: { isActive: boolean }) {
       inactive: outStatus === null,
       onPress: () => {
         if (outStatus === null) return;
-        setPhase('environment');
+        goToPhase('environment');
       },
     });
     setSecondaryButton(null);
@@ -73,54 +104,144 @@ export function StepOutStatus({ isActive }: { isActive: boolean }) {
     outStatus,
     acceptingEnvironment,
     advance,
+    goToPhase,
     setAcceptingEnvironment,
     setPrimaryButton,
     setSecondaryButton,
     setBackHandler,
   ]);
 
-  const rowStyleFor = (selected: boolean) =>
-    [
-      styles.row,
-      { borderBottomColor: colors.gray80 },
-    ] as const;
-  const radioStyleFor = (selected: boolean) =>
-    [
-      styles.radioOuter,
-      selected && { borderColor: colors.buttonPrimary, backgroundColor: colors.buttonPrimary },
-    ];
+  const clearPrev = useCallback(() => setPrevPhase(null), []);
 
-  if (phase === 'resources') {
-    return (
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        <Text style={[styles.title, { color: colors.textPrimary }]}>Resources</Text>
-        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-          Before moving forward, check out the resources available to find help.
-        </Text>
-        <ResourcesList style={styles.resourcesList} />
-      </ScrollView>
-    );
-  }
+  const runTransition = useCallback(
+    (width: number) => {
+      if (width === 0) {
+        clearPrev();
+        return;
+      }
+      const dir = directionRef.current === 'forward' ? 1 : -1;
+      currTX.value = width * dir;
+      currOpacity.value = 0;
+      prevTX.value = 0;
+      prevOpacity.value = 1;
 
-  if (phase === 'environment') {
+      prevTX.value = withTiming(-OUTGOING_OFFSET * dir, {
+        duration: TRANSITION_MS,
+        easing: Easing.out(Easing.cubic),
+      });
+      prevOpacity.value = withTiming(0, {
+        duration: TRANSITION_MS,
+        easing: Easing.out(Easing.cubic),
+      });
+      currTX.value = withTiming(0, { duration: TRANSITION_MS, easing: Easing.out(Easing.cubic) });
+      currOpacity.value = withTiming(
+        1,
+        { duration: TRANSITION_MS, easing: Easing.out(Easing.cubic) },
+        (finished) => {
+          if (finished) runOnJS(clearPrev)();
+        },
+      );
+    },
+    [clearPrev, currOpacity, currTX, prevOpacity, prevTX],
+  );
+
+  useEffect(() => {
+    if (prevPhase === null) return;
+    runTransition(bodyWidth);
+  }, [prevPhase, bodyWidth, runTransition]);
+
+  const currStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: currTX.value }],
+    opacity: currOpacity.value,
+  }));
+  const prevStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: prevTX.value }],
+    opacity: prevOpacity.value,
+  }));
+
+  const onHostLayout = (e: LayoutChangeEvent) => {
+    const w = e.nativeEvent.layout.width;
+    if (w !== bodyWidth) setBodyWidth(w);
+  };
+
+  const renderPhase = (p: Phase) => {
+    if (p === 'resources') {
+      return (
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <Text style={[styles.title, { color: colors.textPrimary }]}>Resources</Text>
+          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+            Before moving forward, check out the resources available to find help.
+          </Text>
+          <ResourcesList style={styles.resourcesList} />
+        </ScrollView>
+      );
+    }
+
+    if (p === 'environment') {
+      return (
+        <View style={styles.body}>
+          <Text style={[styles.title, { color: colors.textPrimary }]}>Are you in an accepting environment?</Text>
+          <View style={styles.list}>
+            {ACCEPTING_ENVIRONMENT_OPTIONS.map((label) => {
+              const selected = acceptingEnvironment === label;
+              return (
+                <Pressable
+                  key={label}
+                  style={({ pressed }) => [
+                    styles.row,
+                    { borderBottomColor: colors.gray80 },
+                    pressed && styles.rowPressed,
+                  ]}
+                  onPress={() => setAcceptingEnvironment(label)}
+                >
+                  <Text style={[styles.rowLabel, { color: colors.textPrimary }]}>{label}</Text>
+                  <View
+                    style={[
+                      styles.radioOuter,
+                      selected && { borderColor: colors.buttonPrimary, backgroundColor: colors.buttonPrimary },
+                    ]}
+                  >
+                    {selected ? <CheckIcon size={16} color={colors.textPrimaryInverted} /> : null}
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+      );
+    }
+
     return (
       <View style={styles.body}>
-        <Text style={[styles.title, { color: colors.textPrimary }]}>Are you in an accepting environment?</Text>
+        <Text style={[styles.title, { color: colors.textPrimary }]}>Are you out?</Text>
+        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+          Out — recognizing, accepting, and openly sharing one&apos;s LGBTQ+ orientation or gender
+          identity with others.
+        </Text>
         <View style={styles.list}>
-          {ACCEPTING_ENVIRONMENT_OPTIONS.map((label) => {
-            const selected = acceptingEnvironment === label;
+          {OUT_OPTIONS.map(({ id, label }) => {
+            const selected = outStatus === id;
             return (
               <Pressable
-                key={label}
-                style={({ pressed }) => [...rowStyleFor(selected), pressed && styles.rowPressed]}
-                onPress={() => setAcceptingEnvironment(label)}
+                key={id}
+                style={({ pressed }) => [
+                  styles.row,
+                  { borderBottomColor: colors.gray80 },
+                  pressed && styles.rowPressed,
+                ]}
+                onPress={() => setOutStatus(id)}
               >
                 <Text style={[styles.rowLabel, { color: colors.textPrimary }]}>{label}</Text>
-                <View style={radioStyleFor(selected)}>
+                <View
+                  style={[
+                    styles.radioOuter,
+                    selected && { borderColor: colors.buttonPrimary, backgroundColor: colors.buttonPrimary },
+                  ]}
+                >
                   {selected ? <CheckIcon size={16} color={colors.textPrimaryInverted} /> : null}
                 </View>
               </Pressable>
@@ -129,37 +250,24 @@ export function StepOutStatus({ isActive }: { isActive: boolean }) {
         </View>
       </View>
     );
-  }
+  };
 
   return (
-    <View style={styles.body}>
-      <Text style={[styles.title, { color: colors.textPrimary }]}>Are you out?</Text>
-      <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-        Out — recognizing, accepting, and openly sharing one&apos;s LGBTQ+ orientation or gender
-        identity with others.
-      </Text>
-      <View style={styles.list}>
-        {OUT_OPTIONS.map(({ id, label }) => {
-          const selected = outStatus === id;
-          return (
-            <Pressable
-              key={id}
-              style={({ pressed }) => [...rowStyleFor(selected), pressed && styles.rowPressed]}
-              onPress={() => setOutStatus(id)}
-            >
-              <Text style={[styles.rowLabel, { color: colors.textPrimary }]}>{label}</Text>
-              <View style={radioStyleFor(selected)}>
-                {selected ? <CheckIcon size={16} color={colors.textPrimaryInverted} /> : null}
-              </View>
-            </Pressable>
-          );
-        })}
-      </View>
+    <View style={styles.host} onLayout={onHostLayout}>
+      {prevPhase !== null ? (
+        <Animated.View style={[styles.layer, styles.layerAbsolute, prevStyle]} pointerEvents="none">
+          {renderPhase(prevPhase)}
+        </Animated.View>
+      ) : null}
+      <Animated.View style={[styles.layer, currStyle]}>{renderPhase(phase)}</Animated.View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  host: { flex: 1, overflow: 'hidden' },
+  layer: { flex: 1 },
+  layerAbsolute: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   body: { flex: 1, paddingHorizontal: Spacing.lg, paddingTop: Spacing.md },
   scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.md, paddingBottom: Spacing.lg },
