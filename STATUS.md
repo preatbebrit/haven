@@ -1,7 +1,7 @@
 # Haven — Project Status
 
 **Repo:** `github.com/preatbebrit/haven` (branch `main`)
-**Last commit:** `d9fa22a` — Email auth: polish big input styling to prevent first-keystroke bounce
+**Last commit:** `25c8970` — Sign-out: wipe device AsyncStorage and route direct supabase.auth.signOut calls through the central auth helper
 
 ## ✅ Done & committed
 - Supabase auth (signup, profile trigger, RLS, onboarding) — `5e0f3bf`
@@ -32,8 +32,57 @@
 - **House rules animation tuning** — `a83ceb1` — per-rule animation timing adjustments across all 5 rule pages, including a global speed multiplier on rule-01. Tile, screen container, and storage/transition helpers polished to match.
 - **step-out-status phase animations** — `9cbc310` — the three internal phases (out / environment / resources) now slide + fade between each other instead of swapping instantly. Matches the parent onboarding step animation timing.
 
-## 🔴 Active priority — data-layer architectural chapter (in progress)
-The codebase was originally built single-user-on-device and the data layer was never updated for multi-user use. We've now done the architectural planning: every data type has a deliberate home, the work is sequenced into 6 phases, and Phase 1 is mid-planning.
+## 🔴 Active priority — real chat launch (Phase 3 partial + Phase 5)
+
+After honest review, the app today only has real backend for auth + profile. Every social feature (chats, members, messages, friends, gallery viewing) is mocked device-local data. Launching a TestFlight beta of this would ship a profile-editor, not a community app. Decision: skip Pride launch, build real chat first, ship in mid-July to mid-August.
+
+### v1 launch scope
+- Curated chat prompts (admin-written, stored in `chat_prompts`)
+- Algorithmic group creation + expiry (Supabase cron job)
+- Chat groups with members, 7-day lifecycle, max-seat enforcement
+- Text + GIF (Giphy) messages
+- Single-level replies (`reply_to_message_id` on messages)
+- Single-reaction (heart) on messages
+- Block + report safety primitives (Phase 3 partial)
+- Real users in chat selection (no mocked members)
+
+### Deferred for v2+
+- Friends + friend-status badges (Phase 4 entirely deferred)
+- Top friends, friend requests
+- User-created chat prompts
+- Multiple reaction types
+- Voice / image messages
+- Gallery cloud sync (Phase 2 — gallery remains device-local; owner-only is fine, no cross-user leak)
+- Notifications backend
+
+### Sequencing (estimated 4-6 weeks)
+1. Apple Developer Program signup (in parallel, has wait time)
+2. Curate 50-100 chat prompts (product work, in parallel)
+3. Decide chat lifecycle parameters (7-day duration? max seats? what happens at expiry — delete vs archive)
+4. **Phase 3 partial** — `user_blocks`, `user_reports` tables, RLS, basic UI. ~3-5 days.
+5. **Phase 5 schemas** — `chat_prompts`, `chat_groups`, `chat_members`, `chat_messages`, `chat_message_reactions`. RLS, RPCs (`join_chat`, `leave_chat`, `send_message`), realtime subscriptions. ~5-7 days.
+6. **Phase 5 cron job** — group creation + expiry via Supabase pg_cron. ~2-3 days.
+7. **Phase 5 client work** — replace mocked chat with real. Chat selection, chat detail, member list, message composer, reply UI, heart UI, block/report UI. ~7-10 days.
+8. Polish, edge cases, error states. ~3-5 days.
+9. TestFlight build, internal testing.
+10. App Store submission and review.
+
+### Open questions before any code
+- Chat lifecycle: 7 days fixed? Configurable per prompt?
+- Max seats per chat: 4? 6? Configurable per prompt?
+- On expiry: delete the chat entirely, archive to a "past chats" view, or just lock writes?
+- Group creation cron schedule: hourly? daily? threshold-based ("if active chats < N, create new ones")?
+- GIF provider: Giphy confirmed (mocks already use Giphy URLs)
+- Replies: single-level (parent message quoted) confirmed
+- Block effect: when A blocks B, does A see B's messages, see B's join in their chats? Block hides B from A entirely, or just disables interaction?
+
+### What stays mocked through v1
+- Gallery (owner-only viewing, device-local, no leak since gallery is self-only)
+- Friends-related UI surfaces — these get hidden entirely from the client (no friend badges, no add-friend buttons, no friend lists) even though the data layer never gets touched
+
+## 📚 Architectural reference (long-term)
+
+This section captures the long-term data architecture plan ratified earlier. The active priority section above reflects the current sequencing for the v1 launch; phase numbers here are the canonical definitions of each phase.
 
 ### Architectural map — decided
 Server-of-record on Supabase: profile data (pronouns, identity tags, gender, out status, accepting environment, DOB), bio, gallery (metadata + Supabase Storage for images), blocks, friend reports, profile shares, friendships, friend requests, top friends, prompt answers, chat membership, intro-seen flag.
