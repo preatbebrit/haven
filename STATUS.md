@@ -67,14 +67,53 @@ After honest review, the app today only has real backend for auth + profile. Eve
 9. TestFlight build, internal testing.
 10. App Store submission and review.
 
-### Open questions before any code
-- Chat lifecycle: 7 days fixed? Configurable per prompt?
-- Max seats per chat: 4? 6? Configurable per prompt?
-- On expiry: delete the chat entirely, archive to a "past chats" view, or just lock writes?
-- Group creation cron schedule: hourly? daily? threshold-based ("if active chats < N, create new ones")?
-- GIF provider: Giphy confirmed (mocks already use Giphy URLs)
-- Replies: single-level (parent message quoted) confirmed
-- Block effect: when A blocks B, does A see B's messages, see B's join in their chats? Block hides B from A entirely, or just disables interaction?
+### Mechanics — decided
+
+**Chat lifecycle:**
+- Chats are open-ended (no fixed expiry on the group itself)
+- Each user has a 7-day membership window; auto-removed at end of 7 days
+- Users can also leave manually
+- Max 5 seats per chat
+
+**Rate limits (rolling 24-hour window per user):**
+- 1 leave per 24 hours
+- Joins unlimited
+- Block-target leaves (leaving a chat containing someone the user has blocked) exempt from rate limit
+- Auto-removal at 7 days does NOT count as a leave
+
+**Message visibility (RLS-enforced):**
+- A user only sees messages sent during their membership window (`message.sent_at` between their `joined_at` and `left_at`)
+- Past members can still see messages from their window (read-only) via the chat detail screen until v1 ships a past-chats archive
+- New joiners can't read history from before they joined
+
+**Blocks:**
+- When A blocks B, both remain in any current shared chat (block doesn't disrupt active chats)
+- A can leave the shared chat without counting toward rate limit (block-target leave)
+- A's chat selection page no longer shows chats containing B (forward-only protection)
+- B's chat selection page no longer shows chats containing A
+- B sees A's profile as "this profile doesn't exist"
+- A still sees B's profile normally (A can unblock from settings)
+- Unblock is via a "blocked users" list in settings
+
+**Reports:**
+- Separate from blocks — report is a moderation queue item, block is a personal filter
+- v1 may have minimal/manual review (you, eventually a team)
+
+**Messages support:**
+- Plain text
+- Giphy GIFs (Giphy SDK on client, store Giphy id + metadata in `gif_metadata` jsonb)
+- Single-level replies (`reply_to_message_id`, parent is quoted/previewed in UI)
+- One reaction type (heart), unique per user per message
+
+**Group creation cron:**
+- Hourly cron via Supabase pg_cron
+- Threshold-based: if active groups with open seats < target_minimum, create more
+- Tuning parameters configurable in a `chat_config` table (or constants): target_minimum_open_groups, max_creates_per_run, prompt-selection strategy (random vs round-robin vs weighted)
+- Old groups (no active members) eventually archived; v1 may just leave them
+
+**Past chats archive view:**
+- Deferred for v1 — no UI for accessing chats you've been removed from
+- Decision to be revisited if user feedback says they miss the history
 
 ### What stays mocked through v1
 - Gallery (owner-only viewing, device-local, no leak since gallery is self-only)
